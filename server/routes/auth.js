@@ -1,8 +1,8 @@
 import { Router } from 'express'
-import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { q, satu } from '../db/pool.js'
 import { bungkus, Galat, bersih } from '../lib/http.js'
+import { hashSandi, cocokSandi } from '../lib/sandi.js'
 import { buatToken, wajibMasuk, kolomPublik } from '../middleware/auth.js'
 import { catatAktivitas } from '../lib/ujian.js'
 import { getPengaturan, kelasEfektif } from '../lib/pengaturan.js'
@@ -46,7 +46,7 @@ r.post('/masuk', bungkus(async (req, res) => {
     [bersih(identitas)],
   )
   if (!p) throw new Galat(401, 'Email/NIS atau kata sandi tidak sesuai.')
-  const cocok = await bcrypt.compare(kata_sandi, p.kata_sandi_hash)
+  const cocok = await cocokSandi(kata_sandi, p.kata_sandi_hash)
   if (!cocok) throw new Galat(401, 'Email/NIS atau kata sandi tidak sesuai.')
   if (!p.aktif) throw new Galat(403, 'Akun dinonaktifkan. Hubungi administrator sekolah.')
   await q('UPDATE pengguna SET terakhir_masuk=now() WHERE id=$1', [p.id])
@@ -69,8 +69,8 @@ r.patch('/profil', wajibMasuk, bungkus(async (req, res) => {
   if (data.nama) await q('UPDATE pengguna SET nama=$1 WHERE id=$2', [bersih(data.nama), req.pengguna.id])
   if (data.kata_sandi_baru) {
     const p = await satu('SELECT kata_sandi_hash FROM pengguna WHERE id=$1', [req.pengguna.id])
-    if (!(await bcrypt.compare(data.kata_sandi_lama || '', p.kata_sandi_hash))) throw new Galat(400, 'Kata sandi lama tidak sesuai.')
-    await q('UPDATE pengguna SET kata_sandi_hash=$1 WHERE id=$2', [await bcrypt.hash(data.kata_sandi_baru, 10), req.pengguna.id])
+    if (!(await cocokSandi(data.kata_sandi_lama || '', p.kata_sandi_hash))) throw new Galat(400, 'Kata sandi lama tidak sesuai.')
+    await q('UPDATE pengguna SET kata_sandi_hash=$1 WHERE id=$2', [await hashSandi(data.kata_sandi_baru), req.pengguna.id])
     await catatAktivitas(req.pengguna.id, 'keamanan', `${req.pengguna.nama} memperbarui kata sandi akun`, '#38BDF8')
   }
   res.json({ pengguna: await satu(`SELECT ${kolomPublik} FROM pengguna WHERE id=$1`, [req.pengguna.id]) })

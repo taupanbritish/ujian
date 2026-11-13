@@ -1,8 +1,8 @@
-import bcrypt from 'bcryptjs'
 import { pool, transaksi } from './pool.js'
 import { siswaNama, bankUntuk, bentukSoal } from './data-seed.js'
 import { jenjangValid, kelasDemo } from '../lib/jenjang.js'
 import { simpanJenjang } from '../lib/pengaturan.js'
+import { hashSandi } from '../lib/sandi.js'
 
 // Seeder dummy MINIMAL: 1 administrator, 1 guru (Informatika), 5 peserta didik,
 // 1 mata pelajaran (Informatika), dan 10 butir soal. Tidak membuat ujian/percobaan
@@ -23,9 +23,9 @@ async function utama() {
     return
   }
 
-  const sandiAdmin = await bcrypt.hash(process.env.SEED_ADMIN_PASSWORD || 'ShanaTech#2026', 10)
-  const sandiGuru = await bcrypt.hash(process.env.SEED_GURU_PASSWORD || 'ShanaTech#2026', 10)
-  const sandiSiswa = await bcrypt.hash(process.env.SEED_SISWA_PASSWORD || 'ShanaTech#2026', 10)
+  const sandiAdmin = await hashSandi(process.env.SEED_ADMIN_PASSWORD || 'ShanaTech#2026')
+  const sandiGuru = await hashSandi(process.env.SEED_GURU_PASSWORD || 'ShanaTech#2026')
+  const sandiSiswa = await hashSandi(process.env.SEED_SISWA_PASSWORD || 'ShanaTech#2026')
   const kelas = kelasDemo(jenjang)[0] || 'VII-A'
 
   await transaksi(async (c) => {

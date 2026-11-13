@@ -10,9 +10,10 @@ import { useAuth } from '../../context/AuthContext'
 import { useSekolah } from '../../context/SekolahContext'
 import { useToast } from '../../context/ToastContext'
 import { useSuara } from '../../context/SoundContext'
-import { Tombol, TombolIkon, Pil, Modal, Avatar, BilahProgres, Cincin, Galat, Memuat } from '../../components/ui'
+import { Tombol, TombolIkon, Pil, Modal, Avatar, Cincin, Galat, Memuat } from '../../components/ui'
 import { Logo } from '../../components/Logo'
-import { TIPE, TINGKAT, jamMenitDetik, tanggal, jamSaja } from '../../lib/format'
+import { HitungMundur, BilahWaktu, SisaWaktu } from '../../components/HitungMundur'
+import { TIPE, TINGKAT, tanggal, jamSaja } from '../../lib/format'
 
 const HURUF = ['A', 'B', 'C', 'D', 'E', 'F']
 
@@ -43,6 +44,92 @@ function GridNomor({ soal, jawaban, idx, onPilih, className = '' }) {
   )
 }
 
+// Kerangka tampilan ruang ujian selama paket soal diambil (prefetch / muat
+// ulang langsung). Struktur dan ukurannya mengikuti tata letak akhir agar
+// tidak ada lompatan tata letak saat soal selesai dimuat.
+function RangkaRuangUjian() {
+  return (
+    <div className="min-h-screen bg-ink-950 pb-24 xl:pb-0" aria-busy="true" aria-label="Menyiapkan lembar soal">
+      <div className="border-b border-line-soft bg-ink-900/92">
+        <div className="mx-auto flex max-w-[1500px] items-center gap-3 px-3 py-2.5 sm:px-5">
+          <div className="rangka hidden size-8 rounded-lg sm:block" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="rangka h-3.5 w-2/3 max-w-xs rounded" />
+            <div className="rangka h-2.5 w-44 max-w-full rounded" />
+          </div>
+          <div className="rangka h-[42px] w-[104px] rounded-xl" />
+          <div className="rangka hidden h-9 w-40 rounded-xl md:block" />
+          <div className="rangka size-9 rounded-xl" />
+          <div className="rangka hidden h-9 w-28 rounded-xl sm:block" />
+        </div>
+        <div className="h-[3px] w-full bg-ink-800" />
+      </div>
+
+      <div className="mx-auto max-w-[1500px] px-3 py-4 sm:px-5 xl:grid xl:grid-cols-[minmax(0,1fr)_326px] xl:gap-4">
+        <div>
+          <div className="kertas relative overflow-hidden rounded-3xl border border-paper-line p-5 pl-9 shadow-lift sm:p-8 sm:pl-14">
+            <span className="pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,#7C5CFF,#22D3EE,#A3E635,#FFB020)] opacity-40" />
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="w-full max-w-sm space-y-2">
+                <div className="rangka-kertas h-2.5 w-52 max-w-full rounded" />
+                <div className="rangka-kertas h-6 w-72 max-w-full rounded" />
+                <div className="rangka-kertas h-2.5 w-64 max-w-full rounded" />
+              </div>
+              <div className="rangka-kertas h-[74px] w-[72px] flex-none rounded-xl" />
+            </div>
+            <div className="mt-6 flex gap-2">
+              <div className="rangka-kertas h-5 w-24 rounded-full" />
+              <div className="rangka-kertas h-5 w-16 rounded-full" />
+            </div>
+            <div className="mt-5 space-y-2.5">
+              <div className="rangka-kertas h-4 w-full rounded" />
+              <div className="rangka-kertas h-4 w-11/12 rounded" />
+              <div className="rangka-kertas h-4 w-8/12 rounded" />
+            </div>
+            <div className="mt-6 space-y-2.5">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="rangka-kertas h-[52px] rounded-xl" style={{ opacity: 1 - i * 0.12 }} />
+              ))}
+            </div>
+            <div className="mt-6 flex items-center justify-between gap-3 border-t border-paper-line pt-4">
+              <div className="rangka-kertas h-10 w-40 rounded-xl" />
+              <div className="rangka-kertas h-10 w-32 rounded-xl" />
+            </div>
+          </div>
+          <div className="mt-3 flex justify-center">
+            <div className="rangka h-3 w-64 max-w-full rounded" />
+          </div>
+        </div>
+
+        <aside className="hidden xl:block">
+          <div className="space-y-3">
+            <div className="kartu space-y-3 p-4">
+              <div className="flex items-center gap-3">
+                <div className="rangka size-10 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <div className="rangka h-3 w-32 rounded" />
+                  <div className="rangka h-2.5 w-24 rounded" />
+                </div>
+              </div>
+              <div className="rangka h-[82px] rounded-xl" />
+              <div className="rangka h-[5px] rounded-full" />
+            </div>
+            <div className="kartu space-y-3 p-4">
+              <div className="rangka h-4 w-32 rounded" />
+              <div className="grid grid-cols-6 gap-1.5">
+                {Array.from({ length: 24 }).map((_, i) => <div key={i} className="rangka aspect-square rounded-lg" />)}
+              </div>
+            </div>
+            <div className="rangka h-11 rounded-xl" />
+          </div>
+        </aside>
+      </div>
+
+      <p className="text-center font-mono text-[0.7rem] tracking-[0.2em] text-mute uppercase">Menyiapkan lembar soal…</p>
+    </div>
+  )
+}
+
 export default function RuangUjian() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -55,7 +142,6 @@ export default function RuangUjian() {
   const [idx, setIdx] = useState(0)
   const [jawaban, setJawaban] = useState({})
   const [statusSimpan, setStatusSimpan] = useState('tersimpan')
-  const [sisa, setSisa] = useState(null)
   const [fokus, setFokus] = useState(0)
   const [gridTerbuka, setGridTerbuka] = useState(false)
   const [modalKirim, setModalKirim] = useState(false)
@@ -68,20 +154,41 @@ export default function RuangUjian() {
   const anchorRef = useRef(null)
   const kirimRef = useRef(false)
   const hilangRef = useRef(false)
-  const ingatRef = useRef({ lima: false, satu: false })
   const idxRef = useRef(0)
   const areaRef = useRef(null)
 
+  // Paket soal diambil SEKALI saat sesi dibuka (di-prefetch saat tombol "Mulai").
+  // staleTime Infinity + refetch fokus/reconnect dimatikan: soal tidak pernah
+  // diambil ulang saat tab berpindah. Status sesi dipantau query ringan di bawah.
   const { data, isPending, error, refetch } = useQuery({
     queryKey: ['sesi-ujian', id],
     queryFn: () => api(`/siswa/percobaan/${id}`),
-    refetchInterval: 20000,
-    refetchOnWindowFocus: true,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     retry: false,
   })
 
   const soal = data?.soal || []
   const aktif = data?.status === 'berlangsung'
+
+  // Jangkar waktu disiapkan saat render pertama yang membawa data agar angka
+  // countdown sudah benar sejak detik pertama (efek anak berjalan lebih dulu
+  // daripada efek induk). Pembaruan berikutnya dilakukan lewat efek simpan.
+  if (!anchorRef.current && typeof data?.percobaan?.sisa_detik === 'number') {
+    anchorRef.current = { sisa: data.percobaan.sisa_detik, at: Date.now() }
+  }
+
+  // Polling ringan (30 detik) untuk mendeteksi sesi yang diakhiri server/waktu habis.
+  const { data: statusSesi } = useQuery({
+    queryKey: ['sesi-status', id],
+    queryFn: () => api(`/siswa/percobaan/${id}/status`),
+    enabled: aktif,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
+    staleTime: 0,
+    retry: false,
+  })
   idxRef.current = idx
 
   useEffect(() => {
@@ -93,7 +200,6 @@ export default function RuangUjian() {
     jawabanRef.current = peta
     setJawaban(peta)
     setFokus(data.percobaan.fokus_hilang || 0)
-    setSisa(data.percobaan.sisa_detik)
     anchorRef.current = { sisa: data.percobaan.sisa_detik, at: Date.now() }
     siapRef.current = true
     const pertamaKosong = data.soal.findIndex((s) => !(peta[s.id]?.isi || '').trim())
@@ -104,9 +210,17 @@ export default function RuangUjian() {
   useEffect(() => {
     if (data?.status === 'berlangsung' && siapRef.current) {
       anchorRef.current = { sisa: data.percobaan.sisa_detik, at: Date.now() }
-      setSisa(data.percobaan.sisa_detik)
     }
   }, [data?.percobaan?.sisa_detik])
+
+  // Polling status juga membawa sisa detik terbaru. Menyegarkan jangkar dari
+  // sini membuat timer ikut menyesuaikan bila pengawas menambah waktu, tanpa
+  // perlu mengambil ulang seluruh paket soal.
+  useEffect(() => {
+    if (statusSesi?.status === 'berlangsung' && typeof statusSesi.sisa_detik === 'number') {
+      anchorRef.current = { sisa: statusSesi.sisa_detik, at: Date.now() }
+    }
+  }, [statusSesi])
 
   useEffect(() => {
     if (data?.status !== 'selesai' || kirimRef.current) return
@@ -115,6 +229,22 @@ export default function RuangUjian() {
     qc.invalidateQueries({ queryKey: ['beranda-siswa'] })
     navigate(`/siswa/hasil/${id}`, { replace: true })
   }, [data?.status])
+
+  useEffect(() => {
+    if (statusSesi?.status !== 'selesai' || kirimRef.current) return
+    kirimRef.current = true
+    if (statusSesi.otomatis) toast.ingat('Waktu habis', { pesan: statusSesi.pesan || 'Jawaban dikirim otomatis oleh sistem.' })
+    qc.invalidateQueries({ queryKey: ['beranda-siswa'] })
+    navigate(`/siswa/hasil/${id}`, { replace: true })
+  }, [statusSesi?.status])
+
+  // Saat halaman ujian ditinggalkan, buang cache sesi agar kunjungan berikutnya
+  // selalu memuat jawaban terbaru dari server (staleTime Infinity hanya berlaku
+  // selama sesi berlangsung di layar).
+  useEffect(() => () => {
+    qc.removeQueries({ queryKey: ['sesi-ujian', id] })
+    qc.removeQueries({ queryKey: ['sesi-status', id] })
+  }, [id, qc])
 
   const simpan = useMutation({
     mutationFn: async () => {
@@ -181,7 +311,9 @@ export default function RuangUjian() {
 
   useEffect(() => {
     if (!aktif) return
-    const t = setTimeout(() => { if (kotorRef.current.size && !simpan.isPending) simpan.mutate() }, 800)
+    // Debounce 3 detik: klik opsi tidak langsung menjadi satu permintaan. Timer
+    // diulang setiap perubahan, lalu kirim sekali setelah siswa berhenti menjawab.
+    const t = setTimeout(() => { if (kotorRef.current.size && !simpan.isPending) simpan.mutate() }, 3000)
     return () => clearTimeout(t)
   }, [jawaban, aktif])
 
@@ -191,30 +323,28 @@ export default function RuangUjian() {
     return () => clearInterval(t)
   }, [aktif, id])
 
-  useEffect(() => {
-    if (!aktif) return
-    const t = setInterval(() => {
-      const a = anchorRef.current
-      if (!a) return
-      const detik = Math.max(0, a.sisa - Math.round((Date.now() - a.at) / 1000))
-      setSisa(detik)
-      if (detik <= 300 && !ingatRef.current.lima) {
-        ingatRef.current.lima = true
+  // Aksi timer disimpan di ref agar callback yang dikirim ke komponen
+  // countdown identitasnya stabil. Ref diisi saat render (sebelum efek anak
+  // berjalan) sehingga peringatan pertama tidak pernah memanggil handler kosong.
+  const aksiTimer = useRef({})
+  aksiTimer.current = {
+    peringatan: (jenis) => {
+      if (jenis === 'lima') {
         bunyi('peringatan')
         toast.ingat('Sisa waktu 5 menit', { pesan: 'Periksa kembali jawaban yang ditandai ragu-ragu.' })
-      }
-      if (detik <= 60 && !ingatRef.current.satu) {
-        ingatRef.current.satu = true
+      } else {
         bunyi('bahaya')
         toast.gagal('Sisa waktu kurang dari 1 menit', { pesan: 'Jawaban akan dikirim otomatis saat waktu habis.' })
       }
-      if (detik <= 0 && !kirimRef.current) {
-        kirimRef.current = true
-        kirim.mutate()
-      }
-    }, 1000)
-    return () => clearInterval(t)
-  }, [aktif, id])
+    },
+    habis: () => {
+      if (kirimRef.current) return
+      kirimRef.current = true
+      kirim.mutate()
+    },
+  }
+  const peringatanWaktu = useCallback((jenis) => aksiTimer.current.peringatan(jenis), [])
+  const habisWaktu = useCallback(() => aksiTimer.current.habis(), [])
 
   useEffect(() => {
     if (!aktif) return
@@ -230,7 +360,8 @@ export default function RuangUjian() {
         hilangRef.current = false
         bunyi('peringatan')
         toast.ingat('Kamu meninggalkan halaman ujian', { pesan: 'Aktivitas ini tercatat dan dapat dilihat pengawas.' })
-        refetch()
+        // Jangan ambil ulang paket soal; cukup periksa status sesi.
+        qc.invalidateQueries({ queryKey: ['sesi-status', id] })
       }
     }
     document.addEventListener('visibilitychange', onVis)
@@ -247,12 +378,15 @@ export default function RuangUjian() {
 
   const pindah = useCallback((ke) => {
     if (!soal.length) return
+    // Berpindah nomor = titik simpan alami: kirim perubahan yang masih tertunda
+    // tanpa menunggu debounce 3 detik.
+    if (kotorRef.current.size && !simpan.isPending) simpan.mutate()
     const tujuan = Math.max(0, Math.min(soal.length - 1, ke))
     setIdx(tujuan)
     setGridTerbuka(false)
     bunyi('klik')
     areaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [soal.length])
+  }, [soal.length, simpan])
 
   useEffect(() => {
     if (!aktif) return
@@ -283,17 +417,7 @@ export default function RuangUjian() {
   const progres = soal.length ? Math.round((terjawab / soal.length) * 100) : 0
   const belumDijawab = soal.map((s, i) => ({ s, i })).filter((x) => !(jawaban[x.s.id]?.isi || '').trim())
 
-  if (isPending) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-ink-950 px-6">
-        <div className="text-center">
-          <div className="anim-apung mx-auto w-fit"><Logo ukuran={54} /></div>
-          <p className="mt-5 font-mono text-[0.74rem] tracking-[0.22em] text-mute uppercase">Menyiapkan lembar soal</p>
-          <div className="mx-auto mt-3 h-1 w-44 overflow-hidden rounded-full bg-ink-800"><div className="rangka h-full w-full" /></div>
-        </div>
-      </div>
-    )
-  }
+  if (isPending) return <RangkaRuangUjian />
 
   if (error) {
     const direset = error.status === 404
@@ -314,9 +438,11 @@ export default function RuangUjian() {
 
   if (!aktif || !soal.length) return <div className="grid min-h-screen place-items-center bg-ink-950"><Memuat pesan="Mengalihkan ke halaman hasil…" /></div>
 
+  // Hanya butir aktif yang dirender ke DOM. Soal lain tetap berada di memori
+  // sebagai data, tetapi tidak pernah dipasang sebagai elemen — inilah bentuk
+  // "lazy render per nomor" untuk ujian dengan puluhan hingga ratusan butir.
   const s = soal[idx]
   const j = jawaban[s.id] || { isi: '', ragu: false }
-  const warnaWaktu = sisa === null ? '#22D3EE' : sisa <= 60 ? '#FF4D6D' : sisa <= 300 ? '#FFB020' : '#A3E635'
   const totalDetik = Math.max(1, data.ujian.durasi_menit * 60)
   const IkonSimpan = statusSimpan === 'menyimpan' ? CloudUpload : statusSimpan === 'gagal' ? CloudAlert : statusSimpan === 'belum' ? Cloud : CheckCircle2
   const teksSimpan = { tersimpan: 'Semua jawaban tersimpan', menyimpan: 'Menyimpan…', belum: 'Perubahan belum tersimpan', gagal: 'Gagal menyimpan — coba lagi' }[statusSimpan]
@@ -342,15 +468,12 @@ export default function RuangUjian() {
             </p>
           </div>
 
-          <span className="flex items-center gap-2 rounded-xl border px-3 py-1.5" style={{ borderColor: `color-mix(in oklab, ${warnaWaktu} 45%, transparent)`, background: `color-mix(in oklab, ${warnaWaktu} 12%, transparent)` }}>
-            <Timer size={15} style={{ color: warnaWaktu }} className={sisa !== null && sisa <= 60 ? 'anim-bahaya rounded-full' : ''} />
-            <span className="text-left">
-              <span className={`block font-mono text-[1.15rem] leading-none font-bold ${sisa !== null && sisa <= 60 ? 'anim-bahaya' : ''}`} style={{ color: warnaWaktu }}>
-                {sisa === null ? '--:--' : jamMenitDetik(sisa)}
-              </span>
-              <span className="mt-0.5 block text-[0.55rem] font-bold tracking-[0.16em] text-mute uppercase">sisa waktu</span>
-            </span>
-          </span>
+          <HitungMundur
+            jangkarRef={anchorRef}
+            aktif={aktif}
+            onPeringatan={peringatanWaktu}
+            onHabis={habisWaktu}
+          />
 
           <span className="hidden items-center gap-1.5 rounded-xl border border-line-soft bg-ink-950/50 px-2.5 py-2 md:flex" title={teksSimpan}>
             <IkonSimpan size={14} style={{ color: warnaSimpan }} className={statusSimpan === 'menyimpan' ? 'anim-putar' : ''} />
@@ -560,7 +683,7 @@ export default function RuangUjian() {
                   <p className="flex items-center justify-between text-[0.72rem]"><span className="text-mute">Belum dijawab</span><span className="font-mono font-bold text-chalk">{kosong}</span></p>
                 </div>
               </div>
-              <BilahProgres nilai={sisa === null ? 0 : (sisa / totalDetik) * 100} warna={warnaWaktu} tinggi={5} className="mt-3" />
+              <BilahWaktu jangkarRef={anchorRef} aktif={aktif} totalDetik={totalDetik} tinggi={5} className="mt-3" />
               <p className="mt-1.5 flex items-center justify-between font-mono text-[0.66rem] text-mute">
                 <span className="flex items-center gap-1"><Clock size={10} /> {data.ujian.durasi_menit} menit</span>
                 <span>batas {jamSaja(data.percobaan.batas_pada)}</span>
@@ -685,7 +808,9 @@ export default function RuangUjian() {
         <div className="mt-3 flex items-center gap-3 rounded-xl border border-amber/40 bg-amber/10 p-3">
           <Timer size={18} className="flex-none text-amber" />
           <span>
-            <span className="block font-mono text-[1.1rem] font-bold text-amber">{sisa === null ? '--:--' : jamMenitDetik(sisa)}</span>
+            <span className="block font-mono text-[1.1rem] font-bold text-amber">
+              <SisaWaktu jangkarRef={anchorRef} aktif={aktif} />
+            </span>
             <span className="block text-[0.72rem] text-mute">Sisa waktu terus berkurang meskipun kamu keluar.</span>
           </span>
         </div>

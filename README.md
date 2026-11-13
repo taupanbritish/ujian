@@ -6,7 +6,8 @@ didistribusikan ke sekolah lain cukup dengan mengubah identitas pada berkas `.en
 **Pengaturan Sekolah**, tanpa menulis ulang aplikasi.
 
 - **Frontend:** React 18 + Vite 6 + Tailwind CSS v4, React Router v6, TanStack Query v5.
-- **Backend:** Express 4 + PostgreSQL (`pg`), autentikasi JWT, hashing sandi `bcryptjs`, validasi `zod`.
+- **Backend:** Express 4 + PostgreSQL (`pg`), autentikasi JWT, hashing sandi `@node-rs/bcrypt`
+  (bcrypt native di thread pool libuv), validasi `zod`.
 - **Impor/ekspor:** `xlsx` untuk impor Excel (soal, peserta, ujian) dan ekspor hasil ke CSV.
 
 ---
@@ -23,8 +24,9 @@ didistribusikan ke sekolah lain cukup dengan mengubah identitas pada berkas `.en
 8. [Impor Excel bank soal](#impor-excel-bank-soal)
 9. [Struktur folder](#struktur-folder)
 10. [Catatan arsitektur](#catatan-arsitektur)
-11. [Build & produksi](#build--produksi)
-12. [Pengembangan & pemeriksaan](#pengembangan--pemeriksaan)
+11. [Kapasitas database & auto-save](#kapasitas-database--auto-save)
+12. [Build & produksi](#build--produksi)
+13. [Pengembangan & pemeriksaan](#pengembangan--pemeriksaan)
 
 ---
 
@@ -189,6 +191,11 @@ Salin dari `.env.example`. Nilai penting:
 | `PORT` | `4310` | Port API Express |
 | `DATABASE_URL` | `postgresql://user:pass@127.0.0.1:5433/cendekia` | Koneksi PostgreSQL; arahkan ke cloud bila perlu |
 | `DATABASE_SSL` | otomatis | SSL aktif otomatis bila host bukan localhost; paksa `true`/`false` |
+| `DATABASE_POOL_MAX` | `10` | Koneksi maksimum per proses Node; lihat [Kapasitas database](#kapasitas-database--auto-save) |
+| `DATABASE_APP_INSTANCES` | `1` | Jumlah proses API bersamaan (cluster/PM2) untuk peringatan kapasitas |
+| `DATABASE_IDLE_TIMEOUT_MS` | `30000` | Koneksi menganggur ditutup setelah durasi ini |
+| `DATABASE_CONNECT_TIMEOUT_MS` | `15000` | Batas waktu membuka koneksi baru |
+| `DATABASE_PGBOUNCER` | `false` | `true` bila `DATABASE_URL` menunjuk PgBouncer |
 | `JWT_SECRET` | ganti untuk produksi | Rahasia penandatanganan token; pakai `openssl rand -hex 32` |
 | `JWT_EXPIRES` | `12h` | Masa berlaku token |
 | `SEED_ADMIN_EMAIL` | `admin@cendekia.sch.id` | Email admin yang dibuat seeder |
@@ -296,6 +303,7 @@ Hasil impor melaporkan jumlah **dibuat**, **galat**, dan rincian galat per nomor
 ├── package.json
 ├── .env.example             # Contoh konfigurasi (salin ke .env)
 ├── public/                  # Aset statis (favicon)
+├── deploy/pgbouncer/        # Konfigurasi PgBouncer (opsional, peserta > 500)
 ├── src/
 │   ├── main.jsx             # Bootstrap React + QueryClient + Router
 │   ├── App.jsx              # Rute bersarang + guard peran
@@ -312,14 +320,15 @@ Hasil impor melaporkan jumlah **dibuat**, **galat**, dan rincian galat per nomor
 └── server/
     ├── index.js             # Express, rute API, penyajian dist/ saat produksi
     ├── middleware/auth.js   # wajibMasuk, boleh, staf (JWT)
-    ├── lib/                 # http, guru (scoping), jenjang, pengaturan, penilaian, ujian
+    ├── lib/                 # http, guru (scoping), jenjang, pengaturan, penilaian,
+    │                        # sandi (bcrypt native), jawaban (batch UPSERT), ujian
     ├── routes/              # auth, soal, ujian, monitoring, hasil, pengguna, mapel,
     │                        # ringkasan, siswa, pengaturan
     └── db/
         ├── schema.sql       # Skema + migrasi idempoten
         ├── migrate.js       # Menjalankan schema.sql
         ├── seed.js          # Seeder dummy minimal (--force untuk reset)
-        ├── pool.js          # Pool pg + info koneksi/SSL
+        ├── pool.js          # Pool pg, statistik, ukuran koneksi, info SSL
         ├── check.js         # Pemeriksa koneksi
         ├── data-jenjang.js  # Katalog kelas/mapel/soal per jenjang
         ├── data-seed.js     # Nama siswa demo + bank soal
@@ -344,6 +353,72 @@ Tabel database: `pengguna`, `mapel`, `rombel`, `soal`, `ujian`, `ujian_soal`, `p
   `perlu_penilaian` dan dinilai manual oleh guru/admin pada menu Hasil & Nilai.
 - **Produksi satu origin:** bila `dist/` ada, Express menyajikan aset statis + fallback SPA,
   sehingga frontend dan API berada pada port yang sama.
+- **Hashing sandi:** seluruh hash dibuat/diverifikasi lewat `server/lib/sandi.js` memakai
+  `@node-rs/bcrypt` (cost 10). Perhitungan berjalan di thread pool libuv, bukan di thread JS
+  utama, sehingga gelombang login bersamaan tidak memblokir event loop. Hash lama `$2a$`/`$2b$`
+  hasil bcryptjs tetap valid tanpa migrasi data.
+
+---
+
+## Kapasitas database & auto-save
+
+### Pool koneksi
+
+`pg.Pool` membuka koneksi sekali lalu memakainya ulang; tidak ada koneksi baru per request.
+Total koneksi ke PostgreSQL = `DATABASE_POOL_MAX` × `DATABASE_APP_INSTANCES`.
+
+| Spesifikasi server database | `DATABASE_POOL_MAX` per proses |
+|---|---|
+| 2 vCPU / 4 GB | 5–8 |
+| 4 vCPU / 8 GB | 10–16 |
+| 8 vCPU / 16 GB | 20–30 |
+
+Aturan praktis: total koneksi ≤ 2–4 × vCPU dan ≤ 80% `max_connections`. Saat start,
+API mencatat ukuran pool dan memberi peringatan bila totalnya mendekati `max_connections`.
+`GET /api/kesehatan` menampilkan `pool.total`, `pool.menganggur`, dan `pool.menunggu`.
+
+Bila peserta serentak **> 500** atau API berjalan banyak proses, tempatkan **PgBouncer** di
+depan PostgreSQL dengan `pool_mode = transaction`. Konfigurasi siap pakai dan panduan ukuran
+pool ada di [`deploy/pgbouncer/`](deploy/pgbouncer/README.md). Arahkan `DATABASE_URL` ke port
+PgBouncer dan set `DATABASE_PGBOUNCER=true`.
+
+### Auto-save jawaban
+
+Alur penyimpanan jawaban sengaja tidak menulis satu baris setiap kali opsi diklik:
+
+1. Di klien, jawaban yang berubah ditandai "kotor". Pengiriman dijadwalkan **3 detik** setelah
+   perubahan terakhir, dikirim segera saat siswa **berpindah nomor soal**, ditambah pemeriksaan
+   tiap 10 detik; hanya soal yang berubah yang dikirim (maksimal 150 soal per permintaan).
+2. Di klien, seluruh baris disimpan dengan **satu perintah** di server: `INSERT ... SELECT FROM
+   unnest(...) ON CONFLICT (percobaan_id, soal_id) DO UPDATE`, bukan satu `UPDATE` per soal.
+   Duplikat `soal_id` dalam satu payload diringkas (yang terakhir menang).
+3. Paket soal diambil **sekali** saat tombol "Mulai" ditekan: halaman beranda mem-prefetch
+   `['sesi-ujian', percobaan_id]`, lalu ruang ujian memakai `staleTime: Infinity`,
+   `refetchOnWindowFocus: false`, dan `refetchOnReconnect: false`. Berpindah tab tidak
+   memicu unduhan ulang soal. Status sesi (waktu habis/selesai) dipantau terpisah lewat
+   `GET /siswa/percobaan/:id/status` yang berpayload kecil setiap 30 detik.
+
+Jadi satu klik tidak sama dengan satu tulis ke PostgreSQL, dan satu permintaan tidak sama
+dengan N perintah. Untuk beban jauh di atas 2.000 peserta serentak, buffer Redis dapat
+ditambahkan sebagai lapisan tulis-asinkron, tetapi itu menukar daya tahan data dengan
+pengurangan tulis; pola batch UPSERT saat ini tetap aman untuk ujian sekolah.
+
+### Render ruang ujian
+
+Ruang ujian dirancang agar dua beban berat tidak saling menular:
+
+- **Timer terisolasi.** Countdown berada di `src/components/HitungMundur.jsx`, bukan di state
+  halaman. Komponen ini memiliki interval 1 detik sendiri dan di-`memo`; tiap tick hanya
+  me-render ulang angka timer, bukan lembar soal. Sisa waktu dihitung dari jangkar
+  `{ sisa, at }` di `useRef`, diperbarui dari respons simpan jawaban dan polling status
+  (sehingga penambahan waktu oleh pengawas ikut terbaca). Peringatan 5 menit/1 menit dan
+  pengiriman otomatis saat waktu habis tetap ditangani komponen yang sama lewat callback stabil.
+- **Satu soal aktif di DOM.** Lembar soal hanya merender `soal[idx]`; butir lain tetap berupa
+  data di memori dan baru dipasang sebagai elemen saat nomornya dibuka. Ujian dengan puluhan
+  hingga ratusan butir (termasuk soal bergambar) tidak membuat semua kartu sekaligus.
+- **Skeleton saat prefetch.** Selama paket soal diambil (prefetch dari beranda atau muat ulang
+  langsung), `RangkaRuangUjian` menampilkan kerangka header, kartu soal, dan panel navigasi
+  dengan `aria-busy`, lalu diganti lembar soal tanpa lompatan tata letak.
 
 ---
 
@@ -363,6 +438,10 @@ Checklist sebelum publik:
 5. Server bind ke `127.0.0.1`; tempatkan di belakang reverse proxy (nginx/Caddy) untuk akses
    publik dan TLS.
 6. Bila memaksa mode produksi lewat shell: `NODE_ENV=production npm start`.
+7. Untuk gelombang login besar (ratusan peserta di menit awal), naikkan `UV_THREADPOOL_SIZE`
+   (bawaan 4) dan/atau jalankan beberapa proses (cluster/PM2) di belakang proxy.
+8. Sesuaikan `DATABASE_POOL_MAX` dengan spesifikasi server database; bila peserta serentak
+   > 500 atau API berjalan banyak proses, pasang PgBouncer (`deploy/pgbouncer/`).
 
 ---
 

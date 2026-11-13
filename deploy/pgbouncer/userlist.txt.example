@@ -1,0 +1,14 @@
+; Salin ke /etc/pgbouncer/userlist.txt (izin 600, pemilik pgbouncer).
+; Format: "nama_pengguna" "sandi_atau_verifier"
+;
+; Pilihan A — verifier SCRAM langsung dari PostgreSQL (disarankan, sandi asli
+; tidak disimpan di berkas ini):
+;   psql -Atc "SELECT usename, passwd FROM pg_shadow WHERE usename='cendekia'"
+;   → "cendekia" "SCRAM-SHA-256$4096:...$...:..."
+;
+; Pilihan B — sandi polos (PgBouncer menghitung SCRAM sendiri saat auth_type
+; = scram-sha-256). Gunakan hanya bila server PgBouncer tepercaya.
+"cendekia" "GANTI-DENGAN-VERIFIER-SCRAM-ATAU-SANDI"
+
+; Akun konsol admin PgBouncer (bukan akun PostgreSQL).
+"pgbouncer" "GANTI-DENGAN-SANDI-ADMIN-KONSOL"

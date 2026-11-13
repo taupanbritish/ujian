@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ZodError } from 'zod'
-import { pool, infoKoneksi } from './db/pool.js'
+import { pool, infoKoneksi, infoPool, statPool, pakaiPgBouncer } from './db/pool.js'
 import { wajibMasuk, staf, boleh } from './middleware/auth.js'
 import auth from './routes/auth.js'
 import soal from './routes/soal.js'
@@ -27,7 +27,7 @@ app.use(express.json({ limit: '1mb' }))
 app.get('/api/kesehatan', async (_req, res) => {
   try {
     await pool.query('SELECT 1')
-    res.json({ status: 'sehat', database: infoKoneksi, waktu: new Date().toISOString() })
+    res.json({ status: 'sehat', database: infoKoneksi, pool: statPool(), waktu: new Date().toISOString() })
   } catch (e) {
     res.status(503).json({ status: 'bermasalah', pesan: e.message })
   }
@@ -63,8 +63,27 @@ app.use((err, _req, res, _next) => {
   res.status(status).json({ pesan })
 })
 
+async function periksaKapasitasPool() {
+  if (pakaiPgBouncer) {
+    console.log('[db] mode PgBouncer aktif: pemeriksaan max_connections dilewati (lihat deploy/pgbouncer).')
+    return
+  }
+  try {
+    const { rows } = await pool.query('SHOW max_connections')
+    const batas = Number(rows[0]?.max_connections)
+    if (!Number.isFinite(batas) || batas <= 0) return
+    if (infoPool.total > Math.floor(batas * 0.8)) {
+      console.warn(`[db] peringatan: pool dapat memakai ${infoPool.total} koneksi (${infoPool.max} × ${infoPool.instans} proses) dari max_connections ${batas}. Turunkan DATABASE_POOL_MAX atau arahkan DATABASE_URL ke PgBouncer.`)
+    }
+  } catch (e) {
+    console.warn('[db] tidak dapat memeriksa max_connections:', e.message)
+  }
+}
+
 app.listen(port, '127.0.0.1', () => {
   console.log(`[api] ${process.env.NAMA_APLIKASI || 'ShanaTech CBT'} berjalan di http://127.0.0.1:${port}`)
   console.log(`[api] PostgreSQL ${infoKoneksi.host}:${infoKoneksi.port} · SSL ${infoKoneksi.ssl ? 'aktif' : 'nonaktif'}`)
+  console.log(`[db] pool ${infoPool.max} koneksi/proses × ${infoPool.instans} proses = maksimum ${infoPool.total}`)
   if (!existsSync(dist)) console.log('[api] mode pengembangan — frontend dilayani Vite di http://127.0.0.1:5180')
+  periksaKapasitasPool()
 })

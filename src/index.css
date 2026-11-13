@@ -310,6 +310,11 @@
   background-size: 220% 100%;
   animation: kilau 1.4s linear infinite;
 }
+.rangka-kertas {
+  background: linear-gradient(100deg, #e4dbc4 30%, #f3ecdb 50%, #e4dbc4 70%);
+  background-size: 220% 100%;
+  animation: kilau 1.4s linear infinite;
+}
 .tunda-1 { animation-delay: 0.06s; }
 .tunda-2 { animation-delay: 0.12s; }
 .tunda-3 { animation-delay: 0.18s; }

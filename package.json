@@ -17,8 +17,8 @@
     "db:check": "node server/db/check.js"
   },
   "dependencies": {
+    "@node-rs/bcrypt": "^2.0.0",
     "@tanstack/react-query": "^5.62.7",
-    "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { q, satu, transaksi } from '../db/pool.js'
 import { bungkus, Galat, angka, bersih, acakArray, statusUjian } from '../lib/http.js'
 import { selesaikan, catatAktivitas } from '../lib/ujian.js'
+import { simpanJawaban } from '../lib/jawaban.js'
 
 const r = Router()
 
@@ -168,6 +169,22 @@ r.get('/percobaan/:id', bungkus(async (req, res) => {
   })
 }))
 
+// Status ringan untuk polling: hanya status, sisa waktu, dan jumlah fokus hilang.
+// Payload soal TIDAK dikirim ulang, sehingga klien bisa mengambil soal sekali saja.
+r.get('/percobaan/:id/status', bungkus(async (req, res) => {
+  const p = await ambilPercobaan(angka(req.params.id), req.pengguna.id)
+  if (p.status === 'berlangsung' && Date.now() > new Date(p.batas_pada).getTime()) {
+    await transaksi((c) => selesaikan(c, p.id, { otomatis: true }))
+    return res.json({ status: 'selesai', otomatis: true, percobaan_id: p.id, pesan: 'Waktu habis, jawaban dikirim otomatis.' })
+  }
+  res.json({
+    status: p.status,
+    percobaan_id: p.id,
+    sisa_detik: Math.max(0, Math.round((new Date(p.batas_pada).getTime() - Date.now()) / 1000)),
+    fokus_hilang: p.fokus_hilang,
+  })
+}))
+
 r.put('/percobaan/:id/jawaban', bungkus(async (req, res) => {
   const p = await ambilPercobaan(angka(req.params.id), req.pengguna.id)
   if (p.status === 'selesai') return res.json({ status: 'selesai', tersimpan: 0, pesan: 'Ujian sudah dikirim.' })
@@ -183,17 +200,9 @@ r.put('/percobaan/:id/jawaban', bungkus(async (req, res) => {
     })).min(1).max(150),
   }).parse(req.body)
   const sah = new Set(p.urutan.map((x) => x.soal_id))
-  const bersihDaftar = daftar.filter((d) => sah.has(d.soal_id))
-  await transaksi(async (c) => {
-    for (const d of bersihDaftar) {
-      await c.query(
-        `INSERT INTO jawaban (percobaan_id,soal_id,isi,ragu,diubah_pada) VALUES ($1,$2,$3,$4,now())
-         ON CONFLICT (percobaan_id,soal_id) DO UPDATE SET isi=EXCLUDED.isi, ragu=EXCLUDED.ragu, diubah_pada=now()`,
-        [p.id, d.soal_id, d.isi ?? '', d.ragu],
-      )
-    }
-  })
-  res.json({ status: 'berlangsung', tersimpan: bersihDaftar.length, waktu: new Date().toISOString(), sisa_detik: Math.max(0, Math.round((new Date(p.batas_pada).getTime() - Date.now()) / 1000)) })
+  // Auto-save: satu perintah UPSERT batch (bukan satu UPDATE per opsi yang dipilih).
+  const tersimpan = await simpanJawaban(p.id, daftar.filter((d) => sah.has(d.soal_id)))
+  res.json({ status: 'berlangsung', tersimpan: tersimpan.length, waktu: new Date().toISOString(), sisa_detik: Math.max(0, Math.round((new Date(p.batas_pada).getTime() - Date.now()) / 1000)) })
 }))
 
 r.post('/percobaan/:id/fokus', bungkus(async (req, res) => {

@@ -147,6 +147,15 @@ export default function Beranda() {
       else toast.sukses('Ujian dimulai', { pesan: 'Jawaban tersimpan otomatis. Tetap berada di halaman ujian sampai selesai.' })
       setUntuk(null)
       setToken('')
+      // Setiap kali sesi dimulai/dilanjutkan, buang cache lama lalu ambil paket soal
+      // sekali di sini; halaman ujian memakai cache yang sama tanpa fetch ulang.
+      qc.removeQueries({ queryKey: ['sesi-ujian', String(d.percobaan_id)] })
+      qc.removeQueries({ queryKey: ['sesi-status', String(d.percobaan_id)] })
+      qc.prefetchQuery({
+        queryKey: ['sesi-ujian', String(d.percobaan_id)],
+        queryFn: () => api(`/siswa/percobaan/${d.percobaan_id}`),
+        staleTime: Infinity,
+      })
       navigate(`/siswa/ujian/${d.percobaan_id}`)
     },
     onError: (e) => {
