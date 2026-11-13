@@ -1,20 +1,43 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Check, Save, FileQuestion, ListChecks, ToggleLeft, TextCursorInput, AlignLeft } from 'lucide-react'
+import { Plus, Trash2, Check, Save, FileQuestion, ListChecks, ToggleLeft, TextCursorInput, AlignLeft, Paperclip } from 'lucide-react'
 import { api, pesanGalat } from '../lib/api'
 import { useToast } from '../context/ToastContext'
 import { useSuara } from '../context/SoundContext'
 import { Field, Modal, Pil, Tombol, OpsiMapel } from './ui'
+import TeksSoal from './TeksSoal'
+import LampiranSoal from './LampiranSoal'
+import KelolaLampiran from './KelolaLampiran'
 import { TIPE, TINGKAT } from '../lib/format'
 
 const IKON_TIPE = { pilihan_ganda: ListChecks, benar_salah: ToggleLeft, isian: TextCursorInput, esai: AlignLeft }
 const HURUF = ['a', 'b', 'c', 'd', 'e']
 
+// Tombol sisip cepat: guru tidak perlu menghafal perintah LaTeX.
+const SISIP = [
+  { label: 'x²', judul: 'Pangkat', tex: 'x^{2}' },
+  { label: '√', judul: 'Akar kuadrat', tex: '\\sqrt{x}' },
+  { label: 'a⁄b', judul: 'Pecahan', tex: '\\frac{a}{b}' },
+  { label: 'Σ', judul: 'Penjumlahan', tex: '\\sum_{i=1}^{n}' },
+  { label: '∫', judul: 'Integral', tex: '\\int_{a}^{b}' },
+  { label: 'π', judul: 'Pi', tex: '\\pi' },
+  { label: '±', judul: 'Plus-minus', tex: '\\pm' },
+  { label: '≤', judul: 'Kurang dari atau sama dengan', tex: '\\le' },
+  { label: '≥', judul: 'Lebih dari atau sama dengan', tex: '\\ge' },
+  { label: '×', judul: 'Kali', tex: '\\times' },
+]
+
 const kosong = (mapelId) => ({
   mapel_id: mapelId || '',
   tipe: 'pilihan_ganda',
   pertanyaan: '',
-  opsi: [{ id: 'a', teks: '' }, { id: 'b', teks: '' }, { id: 'c', teks: '' }, { id: 'd', teks: '' }],
+  lampiran: [],
+  opsi: [
+    { id: 'a', teks: '', lampiran: [] },
+    { id: 'b', teks: '', lampiran: [] },
+    { id: 'c', teks: '', lampiran: [] },
+    { id: 'd', teks: '', lampiran: [] },
+  ],
   kunci: '',
   pembahasan: '',
   tingkat: 'sedang',
@@ -22,12 +45,22 @@ const kosong = (mapelId) => ({
   topik: '',
 })
 
+const opsiKosong = () => [
+  { id: 'a', teks: '', lampiran: [] },
+  { id: 'b', teks: '', lampiran: [] },
+  { id: 'c', teks: '', lampiran: [] },
+  { id: 'd', teks: '', lampiran: [] },
+]
+
 function dariSoal(s) {
   return {
     mapel_id: s.mapel_id,
     tipe: s.tipe,
     pertanyaan: s.pertanyaan,
-    opsi: s.tipe === 'pilihan_ganda' ? s.opsi.map((o) => ({ ...o })) : [{ id: 'a', teks: '' }, { id: 'b', teks: '' }, { id: 'c', teks: '' }, { id: 'd', teks: '' }],
+    lampiran: (s.lampiran || []).map((l) => ({ ...l })),
+    opsi: s.tipe === 'pilihan_ganda'
+      ? s.opsi.map((o) => ({ ...o, lampiran: (o.lampiran || []).map((l) => ({ ...l })) }))
+      : opsiKosong(),
     kunci: s.kunci || '',
     pembahasan: s.pembahasan || '',
     tingkat: s.tingkat,
@@ -36,9 +69,19 @@ function dariSoal(s) {
   }
 }
 
+// Saat menyimpan, unggahan hanya mengirim media_id (URL bertanda tangan
+// dihasilkan server); tautan eksternal mengirim url apa adanya.
+const untukKirim = (daftar = []) => daftar.map((l) => (
+  l.media_id
+    ? { jenis: l.jenis, media_id: l.media_id, alt: l.alt || null, nama: l.nama || null }
+    : { jenis: l.jenis, url: l.url, alt: l.alt || null, nama: l.nama || null }
+))
+
 export default function SoalForm({ terbuka, onTutup, soal, mapel, mapelAktif }) {
   const [form, setForm] = useState(kosong(mapelAktif))
   const [galat, setGalat] = useState({})
+  const refPertanyaan = useRef(null)
+  const lepasRef = useRef(new Set())
   const toast = useToast()
   const { bunyi } = useSuara()
   const qc = useQueryClient()
@@ -48,14 +91,42 @@ export default function SoalForm({ terbuka, onTutup, soal, mapel, mapelAktif }) 
     if (terbuka) {
       setForm(soal ? dariSoal(soal) : kosong(mapelAktif))
       setGalat({})
+      lepasRef.current = new Set()
     }
   }, [terbuka, soal, mapelAktif])
 
   const ubah = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+  const ubahOpsi = (id, patch) => setForm((f) => ({
+    ...f,
+    opsi: f.opsi.map((o) => (o.id === id ? { ...o, ...patch } : o)),
+  }))
+
+  function sisipRumus(tex, blok = false) {
+    const el = refPertanyaan.current
+    const mulai = el?.selectionStart ?? form.pertanyaan.length
+    const akhir = el?.selectionEnd ?? mulai
+    const potongan = blok ? `$$\n${tex}\n$$` : `$${tex}$`
+    const baru = form.pertanyaan.slice(0, mulai) + potongan + form.pertanyaan.slice(akhir)
+    ubah('pertanyaan', baru)
+    requestAnimationFrame(() => {
+      if (!el) return
+      el.focus()
+      const pos = mulai + potongan.length
+      el.setSelectionRange(pos, pos)
+    })
+    bunyi('klik')
+  }
 
   const simpan = useMutation({
     mutationFn: (body) => (edit ? api(`/soal/${soal.id}`, { method: 'PATCH', body }) : api('/soal', { method: 'POST', body })),
     onSuccess: (d) => {
+      // Berkas yang dilepas dari soal baru boleh dihapus setelah penyimpanan
+      // berhasil. Bila masih dipakai soal lain, server menolak (409) dan
+      // berkas tetap aman — kegagalan ini sengaja diabaikan.
+      if (lepasRef.current.size) {
+        ;[...lepasRef.current].forEach((id) => { api(`/media/${id}`, { method: 'DELETE' }).catch(() => {}) })
+        lepasRef.current.clear()
+      }
       bunyi('simpan')
       qc.invalidateQueries({ queryKey: ['soal'] })
       qc.invalidateQueries({ queryKey: ['ringkasan'] })
@@ -92,12 +163,13 @@ export default function SoalForm({ terbuka, onTutup, soal, mapel, mapelAktif }) 
       return
     }
     const opsi = form.tipe === 'pilihan_ganda'
-      ? form.opsi.filter((o) => o.teks.trim()).map((o) => ({ id: o.id, teks: o.teks.trim() }))
-      : form.tipe === 'benar_salah' ? [{ id: 'benar', teks: 'Benar' }, { id: 'salah', teks: 'Salah' }] : []
+      ? form.opsi.filter((o) => o.teks.trim()).map((o) => ({ id: o.id, teks: o.teks.trim(), lampiran: untukKirim(o.lampiran) }))
+      : form.tipe === 'benar_salah' ? [{ id: 'benar', teks: 'Benar', lampiran: [] }, { id: 'salah', teks: 'Salah', lampiran: [] }] : []
     simpan.mutate({
       mapel_id: Number(form.mapel_id),
       tipe: form.tipe,
       pertanyaan: form.pertanyaan.trim(),
+      lampiran: untukKirim(form.lampiran),
       opsi,
       kunci: form.tipe === 'esai' ? (form.kunci.trim() || null) : form.kunci,
       pembahasan: form.pembahasan.trim() || null,
@@ -110,8 +182,10 @@ export default function SoalForm({ terbuka, onTutup, soal, mapel, mapelAktif }) 
   const tambahOpsi = () => {
     if (form.opsi.length >= 5) return
     const id = HURUF.find((h) => !form.opsi.some((o) => o.id === h)) || `o${form.opsi.length}`
-    ubah('opsi', [...form.opsi, { id, teks: '' }])
+    ubah('opsi', [...form.opsi, { id, teks: '', lampiran: [] }])
   }
+
+  const opsiTampil = form.opsi.filter((o) => o.teks.trim())
 
   return (
     <Modal
@@ -186,13 +260,71 @@ export default function SoalForm({ terbuka, onTutup, soal, mapel, mapelAktif }) 
 
         <Field label="Pertanyaan" wajib pesan={galat.pertanyaan}>
           <textarea
+            ref={refPertanyaan}
             value={form.pertanyaan}
             onChange={(e) => ubah('pertanyaan', e.target.value)}
             rows={4}
-            placeholder="Tuliskan pokok pertanyaan. Baris baru akan ditampilkan apa adanya pada lembar peserta."
+            placeholder="Tuliskan pokok pertanyaan. Rumus ditulis di antara $...$, misalnya $x^2 - 5x + 6 = 0$."
             className="kolom-field resize-y leading-relaxed"
           />
         </Field>
+
+        <div className="rounded-xl border border-line-soft bg-ink-950/40 p-2.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 flex items-center gap-1 font-mono text-[0.6rem] font-bold tracking-widest text-mute uppercase"><Paperclip size={10} /> Sisip rumus</span>
+            {SISIP.map((x) => (
+              <button
+                key={x.label}
+                type="button"
+                title={`${x.judul} (${x.tex})`}
+                onClick={() => sisipRumus(x.tex)}
+                className="min-w-8 rounded-lg border border-line bg-ink-900/70 px-2 py-1 font-mono text-[0.76rem] font-bold text-body transition hover:border-cyan/60 hover:text-cyan"
+              >
+                {x.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              title="Rumus tampil sebagai blok di baris sendiri"
+              onClick={() => sisipRumus('\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}', true)}
+              className="rounded-lg border border-line bg-ink-900/70 px-2 py-1 font-mono text-[0.68rem] font-bold text-body transition hover:border-violet/60 hover:text-violet"
+            >
+              $$ blok $$
+            </button>
+            <span className="ml-auto text-[0.66rem] text-mute">Dolar literal: tulis <code className="font-mono text-cyan">\$</code></span>
+          </div>
+        </div>
+
+        <Field label="Lampiran soal" petunjuk="Gambar, audio, atau tautan video pendukung. Hanya soal yang sedang dibuka yang memuat lampirannya.">
+          <KelolaLampiran
+            nilai={form.lampiran}
+            onChange={(v) => ubah('lampiran', v)}
+            onLepas={(id) => lepasRef.current.add(id)}
+          />
+        </Field>
+
+        {(form.pertanyaan.trim() || form.lampiran.length > 0) && (
+          <div className="kertas rounded-2xl border border-paper-line p-4">
+            <p className="mb-2 font-mono text-[0.62rem] font-bold tracking-[0.18em] text-paper-ink/60 uppercase">Pratinjau soal</p>
+            <p className="whitespace-pre-wrap text-[0.9rem] leading-relaxed font-medium text-paper-ink">
+              <TeksSoal teks={form.pertanyaan || 'Pertanyaan akan tampil di sini.'} />
+            </p>
+            <LampiranSoal lampiran={form.lampiran} tema="kertas" />
+            {form.tipe === 'pilihan_ganda' && opsiTampil.length > 0 && (
+              <ul className="mt-3 space-y-1.5">
+                {opsiTampil.map((o) => (
+                  <li key={o.id} className="flex items-start gap-2 text-[0.84rem] text-paper-ink/90">
+                    <span className="grid size-5 flex-none place-items-center rounded-full border-2 border-paper-ink/30 font-mono text-[0.6rem] font-bold">{o.id.toUpperCase()}</span>
+                    <span className="min-w-0 flex-1">
+                      <TeksSoal teks={o.teks} />
+                      <LampiranSoal lampiran={o.lampiran} tema="kertas" kompak />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         {form.tipe === 'pilihan_ganda' && (
           <div>
@@ -204,39 +336,54 @@ export default function SoalForm({ terbuka, onTutup, soal, mapel, mapelAktif }) 
               {form.opsi.map((o, i) => {
                 const aktif = form.kunci === o.id
                 return (
-                  <div key={o.id} className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { bunyi('pilih'); ubah('kunci', o.id) }}
-                      title={aktif ? 'Kunci jawaban' : 'Jadikan kunci jawaban'}
-                      className="grid size-9 flex-none place-items-center rounded-xl border font-mono text-[0.8rem] font-bold transition-all"
-                      style={{
-                        borderColor: aktif ? '#A3E635' : '#26315e',
-                        background: aktif ? 'rgba(163,230,53,0.16)' : 'rgba(5,7,15,0.5)',
-                        color: aktif ? '#A3E635' : '#8A93B8',
-                      }}
-                    >
-                      {aktif ? <Check size={15} strokeWidth={3} /> : o.id.toUpperCase()}
-                    </button>
-                    <input
-                      value={o.teks}
-                      onChange={(e) => ubah('opsi', form.opsi.map((x) => (x.id === o.id ? { ...x, teks: e.target.value } : x)))}
-                      placeholder={`Opsi ${o.id.toUpperCase()}`}
-                      className="kolom-field flex-1"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        bunyi('klik')
-                        const sisa = form.opsi.filter((x) => x.id !== o.id)
-                        setForm((f) => ({ ...f, opsi: sisa, kunci: f.kunci === o.id ? '' : f.kunci }))
-                      }}
-                      disabled={form.opsi.length <= 2}
-                      aria-label={`Hapus opsi ${i + 1}`}
-                      className="grid size-9 flex-none place-items-center rounded-xl border border-line-soft text-mute transition hover:border-rose/60 hover:text-rose disabled:opacity-30"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                  <div key={o.id} className="rounded-xl border border-line-soft/70 bg-ink-950/25 p-1.5">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { bunyi('pilih'); ubah('kunci', o.id) }}
+                        title={aktif ? 'Kunci jawaban' : 'Jadikan kunci jawaban'}
+                        className="grid size-9 flex-none place-items-center rounded-xl border font-mono text-[0.8rem] font-bold transition-all"
+                        style={{
+                          borderColor: aktif ? '#A3E635' : '#26315e',
+                          background: aktif ? 'rgba(163,230,53,0.16)' : 'rgba(5,7,15,0.5)',
+                          color: aktif ? '#A3E635' : '#8A93B8',
+                        }}
+                      >
+                        {aktif ? <Check size={15} strokeWidth={3} /> : o.id.toUpperCase()}
+                      </button>
+                      <input
+                        value={o.teks}
+                        onChange={(e) => ubahOpsi(o.id, { teks: e.target.value })}
+                        placeholder={`Opsi ${o.id.toUpperCase()} — rumus boleh ditulis $...$`}
+                        className="kolom-field flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          bunyi('klik')
+                          const sisa = form.opsi.filter((x) => x.id !== o.id)
+                          setForm((f) => ({ ...f, opsi: sisa, kunci: f.kunci === o.id ? '' : f.kunci }))
+                        }}
+                        disabled={form.opsi.length <= 2}
+                        aria-label={`Hapus opsi ${i + 1}`}
+                        className="grid size-9 flex-none place-items-center rounded-xl border border-line-soft text-mute transition hover:border-rose/60 hover:text-rose disabled:opacity-30"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <details className="mt-1 pl-11">
+                      <summary className="cursor-pointer list-none text-[0.68rem] font-semibold text-mute transition hover:text-cyan">
+                        Lampiran opsi {o.id.toUpperCase()} {o.lampiran?.length ? `(${o.lampiran.length})` : '— tambahkan'}
+                      </summary>
+                      <div className="mt-2">
+                        <KelolaLampiran
+                          nilai={o.lampiran || []}
+                          onChange={(v) => ubahOpsi(o.id, { lampiran: v })}
+                          onLepas={(id) => lepasRef.current.add(id)}
+                          padat
+                        />
+                      </div>
+                    </details>
                   </div>
                 )
               })}
@@ -282,7 +429,7 @@ export default function SoalForm({ terbuka, onTutup, soal, mapel, mapelAktif }) 
           </Field>
         )}
 
-        <Field label="Pembahasan" petunjuk="Tampil pada lembar hasil peserta bila ujian mengizinkan pembahasan.">
+        <Field label="Pembahasan" petunjuk="Tampil pada lembar hasil peserta bila ujian mengizinkan pembahasan. Rumus memakai $...$.">
           <textarea value={form.pembahasan} onChange={(e) => ubah('pembahasan', e.target.value)} rows={3} placeholder="Jelaskan langkah atau alasan jawaban yang benar." className="kolom-field resize-y leading-relaxed" />
         </Field>
 
@@ -292,6 +439,7 @@ export default function SoalForm({ terbuka, onTutup, soal, mapel, mapelAktif }) 
           <Pil warna={TINGKAT[form.tingkat].warna}>{TINGKAT[form.tingkat].label}</Pil>
           <Pil warna="#22D3EE">Bobot {form.bobot}</Pil>
           {form.topik && <Pil warna="#8A93B8">{form.topik}</Pil>}
+          {form.lampiran.length > 0 && <Pil warna="#FFB020">{form.lampiran.length} lampiran</Pil>}
         </div>
       </div>
     </Modal>

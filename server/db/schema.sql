@@ -170,3 +170,26 @@ CREATE TABLE IF NOT EXISTS rombel (
   UNIQUE (jenjang, nama)
 );
 CREATE INDEX IF NOT EXISTS idx_rombel_jenjang ON rombel(jenjang);
+
+-- Lampiran media pada butir soal. Bentuk tiap elemen:
+--   { jenis: 'gambar'|'audio'|'video', media_id?: int, url?: text,
+--     alt?: text, nama?: text }
+-- `media_id` menunjuk berkas yang diunggah ke server; `url` dipakai untuk
+-- tautan eksternal (YouTube, Drive, dsb.). Lampiran per opsi jawaban disimpan
+-- di dalam JSONB `opsi` dengan bentuk yang sama.
+ALTER TABLE soal ADD COLUMN IF NOT EXISTS lampiran JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+-- Berkas media yang diunggah. Berkas fisik disimpan di MEDIA_DIR
+-- (bawaan: server/uploads) dengan nama acak; kolom nama_simpan tidak pernah
+-- memuat path sehingga aman dari path traversal.
+CREATE TABLE IF NOT EXISTS media (
+  id           SERIAL PRIMARY KEY,
+  nama_asli    TEXT NOT NULL,
+  nama_simpan  TEXT NOT NULL UNIQUE,
+  mime         TEXT NOT NULL,
+  jenis        TEXT NOT NULL CHECK (jenis IN ('gambar','audio','video')),
+  ukuran       INTEGER NOT NULL,
+  dibuat_oleh  INTEGER REFERENCES pengguna(id) ON DELETE SET NULL,
+  dibuat_pada  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_media_jenis ON media(jenis);

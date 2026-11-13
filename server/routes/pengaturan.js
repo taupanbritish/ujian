@@ -1,5 +1,9 @@
 import { Router } from 'express'
 import { z } from 'zod'
+import { rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import multer from 'multer'
 import { bungkus, Galat } from '../lib/http.js'
 import { wajibMasuk, boleh } from '../middleware/auth.js'
 import {
@@ -7,6 +11,7 @@ import {
 } from '../lib/pengaturan.js'
 import { DAFTAR_JENJANG, kelasUntuk, jenjangValid } from '../lib/jenjang.js'
 import { catatAktivitas } from '../lib/ujian.js'
+import { infoCadangan, buatCadangan, bersihkanArsip, pulihkanCadangan } from '../lib/cadangan.js'
 
 const r = Router()
 
@@ -65,6 +70,42 @@ r.delete('/rombel/:id', wajibMasuk, boleh('admin'), bungkus(async (req, res) => 
   if (!ada) throw new Galat(404, 'Kelas tidak ditemukan atau sudah dihapus.')
   await catatAktivitas(req.pengguna.id, 'pengaturan', `${req.pengguna.nama} menghapus sebuah kelas manual`, '#FF4D6D')
   res.json({ pesan: 'Kelas dihapus.', id })
+}))
+
+// ── Cadangan & pemulihan (database + folder media) ───────────────────────────
+const unggahArsip = multer({
+  dest: join(tmpdir(), 'cendekia-cadangan-unggah'),
+  limits: { fileSize: 2 * 1024 * 1024 * 1024, files: 1 },
+})
+
+r.get('/cadangan', wajibMasuk, boleh('admin'), bungkus(async (_req, res) => {
+  res.json(await infoCadangan())
+}))
+
+r.get('/cadangan/unduh', wajibMasuk, boleh('admin'), bungkus(async (req, res) => {
+  const { arsip, kerja, nama } = await buatCadangan()
+  await catatAktivitas(req.pengguna.id, 'pengaturan', `${req.pengguna.nama} mengunduh cadangan database dan media`, '#22D3EE')
+  res.download(arsip, nama, async (e) => {
+    await bersihkanArsip(kerja)
+    if (e && !res.headersSent) res.status(500).json({ pesan: 'Cadangan gagal dikirim.' })
+  })
+}))
+
+r.post('/cadangan/pulihkan', wajibMasuk, boleh('admin'), (req, res, next) => {
+  unggahArsip.single('arsip')(req, res, (e) => {
+    if (!e) return next()
+    if (e.code === 'LIMIT_FILE_SIZE') return next(new Galat(413, 'Arsip melebihi batas 2 GB.'))
+    next(new Galat(400, 'Arsip gagal dibaca. Coba unggah ulang.'))
+  })
+}, bungkus(async (req, res) => {
+  if (!req.file?.path) throw new Galat(400, 'Pilih berkas arsip cadangan (.tar.gz).')
+  try {
+    const hasil = await pulihkanCadangan(req.file.path)
+    await catatAktivitas(req.pengguna.id, 'pengaturan', `${req.pengguna.nama} memulihkan database dan media dari cadangan`, '#FFB020')
+    res.json(hasil)
+  } finally {
+    await rm(req.file.path, { force: true }).catch(() => {})
+  }
 }))
 
 export default r

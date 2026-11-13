@@ -16,6 +16,8 @@ import { BatangDistribusi } from '../../components/charts'
 import {
   TIPE, TINGKAT, nilaiTeks, warnaNilai, tanggal, jamSaja, durasiPendek, jawabanTeks,
 } from '../../lib/format'
+import TeksSoal from '../../components/TeksSoal'
+import LampiranSoal from '../../components/LampiranSoal'
 
 const RENTANG = [
   { label: '0–19', min: 0, max: 19.99, warna: '#FF4D6D' },
@@ -263,7 +265,9 @@ function LembarHasil({ id, onTutup, onPerubahan }) {
                       <StatusJawaban d={d} />
                     </div>
 
-                    <p className="mt-2.5 text-[0.86rem] leading-relaxed whitespace-pre-wrap text-body">{d.pertanyaan}</p>
+                    <p className="mt-2.5 text-[0.86rem] leading-relaxed whitespace-pre-wrap text-body"><TeksSoal teks={d.pertanyaan} /></p>
+
+                    <LampiranSoal lampiran={d.lampiran} tema="gelap" />
 
                     {d.opsi?.length > 0 && (
                       <ul className="mt-2.5 space-y-1.5">
@@ -273,7 +277,7 @@ function LembarHasil({ id, onTutup, onPerubahan }) {
                           return (
                             <li
                               key={o.id}
-                              className="flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-[0.8rem] leading-snug"
+                              className="flex flex-wrap items-start gap-2 rounded-lg border px-2.5 py-1.5 text-[0.8rem] leading-snug"
                               style={{
                                 borderColor: benar ? 'rgba(163,230,53,0.45)' : dipilih ? 'rgba(255,77,109,0.45)' : '#1c2549',
                                 background: benar ? 'rgba(163,230,53,0.09)' : dipilih ? 'rgba(255,77,109,0.09)' : 'rgba(5,7,15,0.4)',
@@ -281,10 +285,13 @@ function LembarHasil({ id, onTutup, onPerubahan }) {
                               }}
                             >
                               {d.tipe !== 'benar_salah' && <span className="mt-px font-mono text-[0.72rem] font-bold opacity-80">{o.id.toUpperCase()}.</span>}
-                              <span className="flex-1">{o.teks}</span>
+                              <span className="flex-1"><TeksSoal teks={o.teks} /></span>
                               {benar && <CheckCircle2 size={13} className="mt-px flex-none text-lime" />}
                               {dipilih && !benar && <XCircle size={13} className="mt-px flex-none text-rose" />}
                               {dipilih && <span className="flex-none text-[0.62rem] font-bold tracking-wide uppercase">dipilih</span>}
+                              {o.lampiran?.length > 0 && (
+                                <LampiranSoal lampiran={o.lampiran} tema="gelap" kompak className="w-full basis-full" />
+                              )}
                             </li>
                           )
                         })}
@@ -295,12 +302,12 @@ function LembarHasil({ id, onTutup, onPerubahan }) {
                       <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
                         <div className="rounded-lg border border-line-soft bg-ink-950/50 p-2.5">
                           <p className="text-[0.62rem] font-bold tracking-widest text-mute uppercase">Jawaban peserta</p>
-                          <p className={`mt-1 text-[0.82rem] leading-relaxed whitespace-pre-wrap ${kosong ? 'text-mute italic' : 'text-chalk'}`}>{jawaban || 'Tidak dijawab'}</p>
+                          <p className={`mt-1 text-[0.82rem] leading-relaxed whitespace-pre-wrap ${kosong ? 'text-mute italic' : 'text-chalk'}`}>{jawaban ? <TeksSoal teks={jawaban} /> : 'Tidak dijawab'}</p>
                         </div>
                         {d.tipe !== 'esai' && (
                           <div className="rounded-lg border border-lime/30 bg-lime/8 p-2.5">
                             <p className="text-[0.62rem] font-bold tracking-widest text-lime uppercase">Kunci jawaban</p>
-                            <p className="mt-1 text-[0.82rem] leading-relaxed whitespace-pre-wrap text-chalk">{d.kunci || '—'}</p>
+                            <p className="mt-1 text-[0.82rem] leading-relaxed whitespace-pre-wrap text-chalk"><TeksSoal teks={d.kunci || '—'} /></p>
                           </div>
                         )}
                       </div>
@@ -324,7 +331,7 @@ function LembarHasil({ id, onTutup, onPerubahan }) {
                     {d.pembahasan && d.tipe !== 'esai' && (
                       <details className="mt-2.5 rounded-lg border border-line-soft bg-ink-950/40 p-2.5">
                         <summary className="cursor-pointer text-[0.74rem] font-bold text-cyan">Pembahasan butir</summary>
-                        <p className="mt-1.5 text-[0.78rem] leading-relaxed whitespace-pre-wrap text-mute">{d.pembahasan}</p>
+                        <p className="mt-1.5 text-[0.78rem] leading-relaxed whitespace-pre-wrap text-mute"><TeksSoal teks={d.pembahasan} /></p>
                       </details>
                     )}
                   </li>

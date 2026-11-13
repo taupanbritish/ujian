@@ -5,6 +5,7 @@ import { bungkus, Galat, angka, bersih } from '../lib/http.js'
 import { catatAktivitas } from '../lib/ujian.js'
 import { batasiMapel, milikGuru } from '../lib/guru.js'
 import { getPengaturan } from '../lib/pengaturan.js'
+import { skemaLampiran, tautkanSoal, lampiranDariTeks } from '../lib/media.js'
 
 const r = Router()
 
@@ -12,7 +13,12 @@ const skemaSoal = z.object({
   mapel_id: z.coerce.number().int().positive(),
   tipe: z.enum(['pilihan_ganda', 'benar_salah', 'isian', 'esai']),
   pertanyaan: z.string().min(8, 'Pertanyaan minimal 8 karakter.').max(4000),
-  opsi: z.array(z.object({ id: z.string().min(1), teks: z.string().min(1, 'Teks opsi tidak boleh kosong.') })).max(5).default([]),
+  opsi: z.array(z.object({
+    id: z.string().min(1),
+    teks: z.string().min(1, 'Teks opsi tidak boleh kosong.'),
+    lampiran: skemaLampiran.default([]),
+  })).max(5).default([]),
+  lampiran: skemaLampiran.default([]),
   kunci: z.string().max(4000).nullable().optional(),
   pembahasan: z.string().max(4000).nullable().optional(),
   tingkat: z.enum(['mudah', 'sedang', 'sulit']).default('sedang'),
@@ -29,9 +35,24 @@ const skemaSoal = z.object({
   if (v.tipe === 'isian' && !String(v.kunci || '').trim()) ctx.addIssue({ code: 'custom', message: 'Soal isian wajib memiliki kunci jawaban.' })
 })
 
-const KOLOM = `s.id, s.mapel_id, s.tipe, s.pertanyaan, s.opsi, s.kunci, s.pembahasan, s.tingkat, s.bobot, s.topik,
+const KOLOM = `s.id, s.mapel_id, s.tipe, s.pertanyaan, s.opsi, s.lampiran, s.kunci, s.pembahasan, s.tingkat, s.bobot, s.topik,
   s.dibuat_pada, s.diubah_pada, m.nama AS mapel_nama, m.kode AS mapel_kode, m.warna AS mapel_warna,
   (SELECT count(*)::int FROM ujian_soal us JOIN ujian u ON u.id=us.ujian_id WHERE us.soal_id=s.id AND u.dihapus_pada IS NULL) AS dipakai`
+
+// Lampiran yang menunjuk media_id harus benar-benar ada di tabel media;
+// tanpa ini soal bisa tersimpan dengan rujukan berkas yang sudah dihapus.
+async function pastikanMedia(v) {
+  const semua = [
+    ...(v.lampiran || []),
+    ...(v.opsi || []).flatMap((o) => o.lampiran || []),
+  ]
+  const ids = [...new Set(semua.filter((l) => l.media_id).map((l) => l.media_id))]
+  if (!ids.length) return
+  const { rows } = await q('SELECT id FROM media WHERE id = ANY($1::int[])', [ids])
+  const ada = new Set(rows.map((r) => r.id))
+  const hilang = ids.filter((x) => !ada.has(x))
+  if (hilang.length) throw new Galat(422, `Berkas lampiran tidak ditemukan (id ${hilang.join(', ')}). Unggah ulang berkasnya.`)
+}
 
 function penyaring(query) {
   const where = ['s.dihapus_pada IS NULL']
@@ -77,12 +98,12 @@ r.get('/', bungkus(async (req, res) => {
       count(*) FILTER (WHERE s.tingkat='sulit')::int AS sulit
      FROM soal s WHERE ${whereSql}`, params,
   )
-  res.json({ data: rows.rows, total: total.n, halaman, batas, ringkas })
+  res.json({ data: rows.rows.map((s) => tautkanSoal(s)), total: total.n, halaman, batas, ringkas })
 }))
 
 r.get('/arsip/daftar', bungkus(async (_req, res) => {
   const rows = await q(`SELECT ${KOLOM} FROM soal s JOIN mapel m ON m.id=s.mapel_id WHERE s.dihapus_pada IS NOT NULL ORDER BY s.dihapus_pada DESC LIMIT 100`)
-  res.json({ data: rows.rows })
+  res.json({ data: rows.rows.map((s) => tautkanSoal(s)) })
 }))
 
 r.get('/:id', bungkus(async (req, res) => {
@@ -93,15 +114,16 @@ r.get('/:id', bungkus(async (req, res) => {
     `SELECT u.id, u.judul, u.status FROM ujian_soal us JOIN ujian u ON u.id=us.ujian_id WHERE us.soal_id=$1 AND u.dihapus_pada IS NULL ORDER BY u.mulai_pada DESC`,
     [soal.id],
   )
-  res.json({ soal, ujian: ujian.rows })
+  res.json({ soal: tautkanSoal(soal), ujian: ujian.rows })
 }))
 
 r.post('/', bungkus(async (req, res) => {
   const v = skemaSoal.parse(req.body)
+  await pastikanMedia(v)
   const baru = await satu(
-    `INSERT INTO soal (mapel_id,tipe,pertanyaan,opsi,kunci,pembahasan,tingkat,bobot,topik,dibuat_oleh)
-     VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10) RETURNING id`,
-    [v.mapel_id, v.tipe, bersih(v.pertanyaan), JSON.stringify(v.opsi), v.kunci || null, v.pembahasan || null, v.tingkat, v.bobot, v.topik || null, req.pengguna.id],
+    `INSERT INTO soal (mapel_id,tipe,pertanyaan,opsi,lampiran,kunci,pembahasan,tingkat,bobot,topik,dibuat_oleh)
+     VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9,$10,$11) RETURNING id`,
+    [v.mapel_id, v.tipe, bersih(v.pertanyaan), JSON.stringify(v.opsi), JSON.stringify(v.lampiran), v.kunci || null, v.pembahasan || null, v.tingkat, v.bobot, v.topik || null, req.pengguna.id],
   )
   await catatAktivitas(req.pengguna.id, 'soal_baru', `${req.pengguna.nama} menambahkan soal ${v.tipe.replace('_', ' ')} baru`, '#7C5CFF')
   res.status(201).json({ id: baru.id, pesan: 'Soal berhasil ditambahkan ke bank soal.' })
@@ -157,26 +179,33 @@ function barisKeSoal(b, mapelId) {
   const bobot = Math.min(10, Math.max(0.5, Number(b.bobot) || 1))
   const pembahasan = bersih(b.pembahasan) || null
   const topik = bersih(b.topik) || null
+  // Lampiran dari Excel berupa tautan eksternal; beberapa tautan dalam satu sel
+  // dipisahkan titik koma. Berkas unggahan dilakukan lewat antarmuka.
+  const lampiran = [
+    ...lampiranDariTeks('gambar', b.gambar, b.gambar_alt),
+    ...lampiranDariTeks('audio', b.audio),
+    ...lampiranDariTeks('video', b.video),
+  ]
 
   if (tipe === 'pilihan_ganda') {
     const opsi = HURUF.map((h) => ({ id: h, teks: bersih(b[`opsi_${h}`]) })).filter((o) => o.teks)
     if (opsi.length < 2) throw new Error('Pilihan ganda butuh minimal dua opsi (opsi_a, opsi_b, …).')
     const kunci = kunciPg(b.kunci, opsi)
     if (!kunci) throw new Error(`Kunci "${b.kunci || '(kosong)'}" tidak cocok dengan opsi yang ada.`)
-    return { mapel_id: mapelId, tipe, pertanyaan, opsi, kunci, pembahasan, tingkat, bobot, topik }
+    return { mapel_id: mapelId, tipe, pertanyaan, opsi, lampiran, kunci, pembahasan, tingkat, bobot, topik }
   }
   if (tipe === 'benar_salah') {
     const kunci = kunciBs(b.kunci)
     if (!kunci) throw new Error('Kunci benar/salah harus berisi "benar" atau "salah".')
-    return { mapel_id: mapelId, tipe, pertanyaan, opsi: [{ id: 'benar', teks: 'Benar' }, { id: 'salah', teks: 'Salah' }], kunci, pembahasan, tingkat, bobot, topik }
+    return { mapel_id: mapelId, tipe, pertanyaan, opsi: [{ id: 'benar', teks: 'Benar' }, { id: 'salah', teks: 'Salah' }], lampiran, kunci, pembahasan, tingkat, bobot, topik }
   }
   if (tipe === 'isian') {
     const kunci = bersih(b.kunci)
     if (!kunci) throw new Error('Isian singkat membutuhkan kunci jawaban.')
-    return { mapel_id: mapelId, tipe, pertanyaan, opsi: [], kunci, pembahasan, tingkat, bobot, topik }
+    return { mapel_id: mapelId, tipe, pertanyaan, opsi: [], lampiran, kunci, pembahasan, tingkat, bobot, topik }
   }
   // esai: kunci dipakai sebagai pedoman penskoran (opsional)
-  return { mapel_id: mapelId, tipe, pertanyaan, opsi: [], kunci: bersih(b.kunci) || null, pembahasan, tingkat, bobot, topik }
+  return { mapel_id: mapelId, tipe, pertanyaan, opsi: [], lampiran, kunci: bersih(b.kunci) || null, pembahasan, tingkat, bobot, topik }
 }
 
 r.post('/import', bungkus(async (req, res) => {
@@ -204,10 +233,11 @@ r.post('/import', bungkus(async (req, res) => {
       if (!milikGuru(gm, mapelId)) throw new Error('Mapel tujuan bukan mata pelajaran yang Anda ampu.')
       const d = barisKeSoal(b, mapelId)
       const v = skemaSoal.parse(d)
+      await pastikanMedia(v)
       await q(
-        `INSERT INTO soal (mapel_id,tipe,pertanyaan,opsi,kunci,pembahasan,tingkat,bobot,topik,dibuat_oleh)
-         VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10)`,
-        [v.mapel_id, v.tipe, bersih(v.pertanyaan), JSON.stringify(v.opsi), v.kunci || null, v.pembahasan || null, v.tingkat, v.bobot, v.topik || null, req.pengguna.id],
+        `INSERT INTO soal (mapel_id,tipe,pertanyaan,opsi,lampiran,kunci,pembahasan,tingkat,bobot,topik,dibuat_oleh)
+         VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7,$8,$9,$10,$11)`,
+        [v.mapel_id, v.tipe, bersih(v.pertanyaan), JSON.stringify(v.opsi), JSON.stringify(v.lampiran), v.kunci || null, v.pembahasan || null, v.tingkat, v.bobot, v.topik || null, req.pengguna.id],
       )
       dibuat++
     } catch (e) {
@@ -228,9 +258,10 @@ r.patch('/:id', bungkus(async (req, res) => {
   const ada = await satu('SELECT id FROM soal WHERE id=$1 AND dihapus_pada IS NULL', [id])
   if (!ada) throw new Galat(404, 'Soal tidak ditemukan.')
   const v = skemaSoal.parse(req.body)
+  await pastikanMedia(v)
   await q(
-    `UPDATE soal SET mapel_id=$1,tipe=$2,pertanyaan=$3,opsi=$4::jsonb,kunci=$5,pembahasan=$6,tingkat=$7,bobot=$8,topik=$9,diubah_pada=now() WHERE id=$10`,
-    [v.mapel_id, v.tipe, bersih(v.pertanyaan), JSON.stringify(v.opsi), v.kunci || null, v.pembahasan || null, v.tingkat, v.bobot, v.topik || null, id],
+    `UPDATE soal SET mapel_id=$1,tipe=$2,pertanyaan=$3,opsi=$4::jsonb,lampiran=$5::jsonb,kunci=$6,pembahasan=$7,tingkat=$8,bobot=$9,topik=$10,diubah_pada=now() WHERE id=$11`,
+    [v.mapel_id, v.tipe, bersih(v.pertanyaan), JSON.stringify(v.opsi), JSON.stringify(v.lampiran), v.kunci || null, v.pembahasan || null, v.tingkat, v.bobot, v.topik || null, id],
   )
   const terpakai = await satu('SELECT count(*)::int AS n FROM ujian_soal WHERE soal_id=$1', [id])
   res.json({ pesan: 'Perubahan soal tersimpan.', dipakai: terpakai.n })
@@ -259,8 +290,8 @@ r.post('/pulihkan', bungkus(async (req, res) => {
 r.post('/:id/duplikat', bungkus(async (req, res) => {
   const id = angka(req.params.id)
   const hasil = await satu(
-    `INSERT INTO soal (mapel_id,tipe,pertanyaan,opsi,kunci,pembahasan,tingkat,bobot,topik,dibuat_oleh)
-     SELECT mapel_id,tipe,pertanyaan,opsi,kunci,pembahasan,tingkat,bobot,topik,$2 FROM soal WHERE id=$1 AND dihapus_pada IS NULL RETURNING id`,
+    `INSERT INTO soal (mapel_id,tipe,pertanyaan,opsi,lampiran,kunci,pembahasan,tingkat,bobot,topik,dibuat_oleh)
+     SELECT mapel_id,tipe,pertanyaan,opsi,lampiran,kunci,pembahasan,tingkat,bobot,topik,$2 FROM soal WHERE id=$1 AND dihapus_pada IS NULL RETURNING id`,
     [id, req.pengguna.id],
   )
   if (!hasil) throw new Galat(404, 'Soal tidak ditemukan.')

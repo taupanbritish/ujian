@@ -4,6 +4,7 @@ import { q, satu, transaksi } from '../db/pool.js'
 import { bungkus, Galat, angka, bersih, acakArray, statusUjian } from '../lib/http.js'
 import { selesaikan, catatAktivitas } from '../lib/ujian.js'
 import { simpanJawaban } from '../lib/jawaban.js'
+import { tautkanLampiran } from '../lib/media.js'
 
 const r = Router()
 
@@ -135,7 +136,7 @@ r.get('/percobaan/:id', bungkus(async (req, res) => {
      FROM ujian u JOIN mapel m ON m.id=u.mapel_id WHERE u.id=$1`, [p.ujian_id],
   )
   const soalRows = await q(
-    `SELECT s.id, s.tipe, s.pertanyaan, s.opsi, s.tingkat, s.topik, us.bobot
+    `SELECT s.id, s.tipe, s.pertanyaan, s.opsi, s.lampiran, s.tingkat, s.topik, us.bobot
      FROM soal s JOIN ujian_soal us ON us.soal_id=s.id AND us.ujian_id=$2 WHERE s.id = ANY($1::int[])`,
     [p.urutan.map((x) => x.soal_id), p.ujian_id],
   )
@@ -150,10 +151,14 @@ r.get('/percobaan/:id', bungkus(async (req, res) => {
       id: s.id,
       tipe: s.tipe,
       pertanyaan: s.pertanyaan,
+      lampiran: tautkanLampiran(s.lampiran),
       tingkat: s.tingkat,
       topik: s.topik,
       bobot: Number(s.bobot),
-      opsi: urutanOpsi.map((oid) => opsiMap.get(oid)).filter(Boolean),
+      opsi: urutanOpsi.map((oid) => {
+        const o = opsiMap.get(oid)
+        return o ? { ...o, lampiran: tautkanLampiran(o.lampiran) } : null
+      }).filter(Boolean),
     }
   }).filter(Boolean)
   const jawaban = await q('SELECT soal_id, isi, ragu FROM jawaban WHERE percobaan_id=$1', [p.id])
@@ -229,7 +234,7 @@ r.get('/percobaan/:id/hasil', bungkus(async (req, res) => {
      FROM ujian u JOIN mapel m ON m.id=u.mapel_id WHERE u.id=$1`, [p.ujian_id],
   )
   const detail = await q(
-    `SELECT s.id AS soal_id, s.tipe, s.pertanyaan, s.opsi, s.kunci, s.pembahasan, us.bobot, us.urutan, j.isi, j.ragu, j.skor, j.catatan
+    `SELECT s.id AS soal_id, s.tipe, s.pertanyaan, s.opsi, s.lampiran, s.kunci, s.pembahasan, us.bobot, us.urutan, j.isi, j.ragu, j.skor, j.catatan
      FROM ujian_soal us JOIN soal s ON s.id=us.soal_id
      LEFT JOIN jawaban j ON j.soal_id=s.id AND j.percobaan_id=$1
      WHERE us.ujian_id=$2 ORDER BY us.urutan`,
@@ -253,7 +258,9 @@ r.get('/percobaan/:id/hasil', bungkus(async (req, res) => {
     ujian: { ...u, kkm: Number(u.kkm) },
     detail: terurut.map((d, i) => ({
       nomor: i + 1,
-      soal_id: d.soal_id, tipe: d.tipe, pertanyaan: d.pertanyaan, opsi: d.opsi, bobot: Number(d.bobot),
+      soal_id: d.soal_id, tipe: d.tipe, pertanyaan: d.pertanyaan, bobot: Number(d.bobot),
+      lampiran: tautkanLampiran(d.lampiran),
+      opsi: (d.opsi || []).map((o) => ({ ...o, lampiran: tautkanLampiran(o.lampiran) })),
       isi: d.isi, ragu: d.ragu, skor: d.skor === null ? null : Number(d.skor), catatan: d.catatan,
       kunci: boleh ? d.kunci : null,
       pembahasan: boleh ? d.pembahasan : null,

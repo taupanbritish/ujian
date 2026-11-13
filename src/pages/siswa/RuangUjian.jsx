@@ -13,6 +13,8 @@ import { useSuara } from '../../context/SoundContext'
 import { Tombol, TombolIkon, Pil, Modal, Avatar, Cincin, Galat, Memuat } from '../../components/ui'
 import { Logo } from '../../components/Logo'
 import { HitungMundur, BilahWaktu, SisaWaktu } from '../../components/HitungMundur'
+import TeksSoal from '../../components/TeksSoal'
+import LampiranSoal from '../../components/LampiranSoal'
 import { TIPE, TINGKAT, tanggal, jamSaja } from '../../lib/format'
 
 const HURUF = ['A', 'B', 'C', 'D', 'E', 'F']
@@ -545,26 +547,32 @@ export default function RuangUjian() {
                 <span className="ml-auto font-mono text-[0.68rem] font-bold text-paper-ink/55">bobot {Number(s.bobot)}</span>
               </div>
 
-              <p className="mt-4 text-[1.05rem] leading-[1.75] font-medium whitespace-pre-wrap text-paper-ink sm:text-[1.15rem]">{s.pertanyaan}</p>
+              <p className="mt-4 text-[1.05rem] leading-[1.75] font-medium whitespace-pre-wrap text-paper-ink sm:text-[1.15rem]"><TeksSoal teks={s.pertanyaan} /></p>
+
+              <LampiranSoal lampiran={s.lampiran} tema="kertas" />
 
               {s.tipe === 'pilihan_ganda' || s.tipe === 'benar_salah' ? (
                 <div className="mt-5 space-y-2.5" role="radiogroup" aria-label={`Pilihan jawaban soal nomor ${idx + 1}`}>
                   {s.opsi.map((o, i) => {
                     const dipilih = j.isi === o.id
                     return (
-                      <button
-                        key={o.id}
-                        type="button"
-                        role="radio"
-                        aria-checked={dipilih}
-                        data-aktif={dipilih}
-                        onClick={() => { bunyi('pilih'); jawab(s.id, { isi: o.id }) }}
-                        className="pil-opsi"
-                      >
-                        <span className="gelembung">{s.tipe === 'benar_salah' ? (o.id === 'benar' ? 'B' : 'S') : HURUF[i]}</span>
-                        <span className="flex-1 pt-1 text-[0.94rem] leading-relaxed text-paper-ink">{o.teks}</span>
-                        {dipilih && <CheckCircle2 size={18} className="mt-1.5 flex-none text-violet" />}
-                      </button>
+                      <div key={o.id}>
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={dipilih}
+                          data-aktif={dipilih}
+                          onClick={() => { bunyi('pilih'); jawab(s.id, { isi: o.id }) }}
+                          className="pil-opsi"
+                        >
+                          <span className="gelembung">{s.tipe === 'benar_salah' ? (o.id === 'benar' ? 'B' : 'S') : HURUF[i]}</span>
+                          <span className="flex-1 pt-1 text-[0.94rem] leading-relaxed text-paper-ink"><TeksSoal teks={o.teks} /></span>
+                          {dipilih && <CheckCircle2 size={18} className="mt-1.5 flex-none text-violet" />}
+                        </button>
+                        {o.lampiran?.length > 0 && (
+                          <LampiranSoal lampiran={o.lampiran} tema="kertas" kompak className="mt-1.5 ml-11" />
+                        )}
+                      </div>
                     )
                   })}
                   {j.isi && (

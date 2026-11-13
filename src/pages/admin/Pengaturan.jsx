@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Save, School, Building2, CalendarDays, Layers, Terminal,
   GraduationCap, Sparkles, Lock, CheckCircle2, ArrowRight, RotateCcw, Info, Check,
-  Plus, X, Users,
+  Plus, X, Users, DatabaseBackup, Download, UploadCloud, HardDrive, ShieldCheck, AlertTriangle,
 } from 'lucide-react'
-import { api, pesanGalat } from '../../lib/api'
+import { api, apiUnggah, unduhBerkas, pesanGalat } from '../../lib/api'
 import { useAuth } from '../../context/AuthContext'
 import { useSekolah } from '../../context/SekolahContext'
 import { useToast } from '../../context/ToastContext'
@@ -156,6 +156,233 @@ function KelolaKelas({ jenjangAktif }) {
         )}
       </div>
     </div>
+  )
+}
+
+const ukuranTeks = (byte) => {
+  const n = Number(byte) || 0
+  if (n < 1024) return `${n} B`
+  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`
+  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(1)} MB`
+  return `${(n / 1024 ** 3).toFixed(2)} GB`
+}
+
+const stempelUnduhan = () => new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+
+function CadanganData() {
+  const toast = useToast()
+  const { bunyi } = useSuara()
+  const qc = useQueryClient()
+  const inputRef = useRef(null)
+  const [berkas, setBerkas] = useState(null)
+  const [tanya, setTanya] = useState(false)
+
+  const { data, isPending } = useQuery({
+    queryKey: ['cadangan-info'],
+    queryFn: () => api('/pengaturan/cadangan'),
+    staleTime: 60_000,
+  })
+  const siap = Boolean(data?.perkakas?.siap)
+  const perkakas = data?.perkakas || {}
+
+  const unduh = useMutation({
+    mutationFn: () => unduhBerkas('/pengaturan/cadangan/unduh', `cadangan-cendekia-${stempelUnduhan()}.tar.gz`),
+    onSuccess: () => {
+      bunyi('simpan')
+      qc.invalidateQueries({ queryKey: ['cadangan-info'] })
+      toast.sukses('Cadangan diunduh', { pesan: 'Arsip berisi database, seluruh folder media, dan manifest checksum.' })
+    },
+    onError: (e) => { bunyi('gagal'); toast.gagal('Cadangan gagal dibuat', { pesan: pesanGalat(e) }) },
+  })
+
+  const pulihkan = useMutation({
+    mutationFn: (f) => {
+      const fd = new FormData()
+      fd.append('arsip', f)
+      return apiUnggah('/pengaturan/cadangan/pulihkan', fd)
+    },
+    onSuccess: (d) => {
+      bunyi('simpan')
+      setTanya(false)
+      setBerkas(null)
+      if (inputRef.current) inputRef.current.value = ''
+      qc.clear()
+      toast.sukses('Cadangan berhasil dipulihkan', { pesan: d?.pesan || 'Aplikasi dimuat ulang untuk membaca data baru.' })
+      setTimeout(() => window.location.reload(), 1800)
+    },
+    onError: (e) => {
+      bunyi('gagal')
+      setTanya(false)
+      if (inputRef.current) inputRef.current.value = ''
+      toast.gagal('Cadangan belum dipulihkan', { pesan: pesanGalat(e) })
+    },
+  })
+
+  const batalPulih = () => {
+    if (pulihkan.isPending) return
+    setTanya(false)
+    setBerkas(null)
+    if (inputRef.current) inputRef.current.value = ''
+  }
+
+  const pilihBerkas = (e) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    const nama = f.name.toLowerCase()
+    if (!nama.endsWith('.tar.gz') && !nama.endsWith('.tgz')) {
+      bunyi('gagal')
+      toast.gagal('Berkas tidak dikenali', { pesan: 'Pilih arsip cadangan .tar.gz yang diunduh dari aplikasi ini.' })
+      e.target.value = ''
+      return
+    }
+    bunyi('pilih')
+    setBerkas(f)
+    setTanya(true)
+  }
+
+  const kartu = [
+    {
+      l: 'Basis data',
+      v: data?.basis_data ? `${data.basis_data.nama}` : isPending ? 'Memuat…' : '—',
+      d: data?.basis_data ? `${data.basis_data.host}:${data.basis_data.port}` : undefined,
+      ikon: DatabaseBackup, w: '#22D3EE',
+    },
+    {
+      l: 'Media tersimpan',
+      v: data ? `${data.media.jumlah} berkas` : isPending ? 'Memuat…' : '—',
+      d: data ? ukuranTeks(data.media.ukuran) : undefined,
+      ikon: HardDrive, w: '#7C5CFF',
+    },
+    {
+      l: 'Cadangan pengaman',
+      v: data ? `${data.cadangan_pengaman} arsip` : isPending ? 'Memuat…' : '—',
+      d: 'Dibuat otomatis sebelum pemulihan',
+      ikon: ShieldCheck, w: '#A3E635',
+    },
+    {
+      l: 'Status perkakas',
+      v: siap ? 'Siap' : isPending ? 'Memuat…' : 'Belum lengkap',
+      d: siap ? 'pg_dump · pg_restore · tar' : 'Periksa bagian catatan di bawah',
+      ikon: siap ? CheckCircle2 : AlertTriangle, w: siap ? '#A3E635' : '#FFB020',
+    },
+  ]
+
+  return (
+    <section className="kartu overflow-hidden">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line-soft p-5">
+        <div>
+          <h3 className="flex items-center gap-2 text-[1.05rem]"><DatabaseBackup size={17} className="text-cyan" /> Cadangan &amp; pemulihan</h3>
+          <p className="mt-1 max-w-2xl text-[0.78rem] leading-relaxed text-mute">
+            Satu arsip memuat seluruh database, berkas media soal, dan manifest checksum. Pemulihan mengembalikan keduanya sekaligus,
+            sehingga soal bergambar, audio, dan video tetap utuh setelah dipindahkan ke server lain.
+          </p>
+        </div>
+        <Pil warna={siap ? '#A3E635' : '#FFB020'} ikon={siap ? ShieldCheck : AlertTriangle}>
+          {isPending ? 'Memeriksa perkakas…' : siap ? 'Perkakas siap' : 'Perkakas belum lengkap'}
+        </Pil>
+      </div>
+
+      <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4">
+        {kartu.map((x) => {
+          const Ikon = x.ikon
+          return (
+            <div key={x.l} className="flex items-center gap-3 rounded-xl border border-line-soft bg-ink-950/40 p-3.5">
+              <span className="grid size-9 flex-none place-items-center rounded-lg" style={{ background: `color-mix(in oklab, ${x.w} 16%, transparent)`, color: x.w }}><Ikon size={16} /></span>
+              <span className="min-w-0">
+                <span className="block text-[0.66rem] font-bold tracking-wide text-mute uppercase">{x.l}</span>
+                <span className="block truncate text-[0.9rem] font-bold text-chalk">{x.v}</span>
+                {x.d && <span className="block truncate font-mono text-[0.66rem] text-mute">{x.d}</span>}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="grid gap-4 border-t border-line-soft p-5 lg:grid-cols-2">
+        <div className="rounded-xl border border-line-soft bg-ink-950/40 p-4">
+          <p className="flex items-center gap-2 text-[0.9rem] font-bold text-chalk"><Download size={15} className="text-cyan" /> Unduh cadangan</p>
+          <p className="mt-1.5 text-[0.76rem] leading-relaxed text-mute">
+            Arsip <code className="rounded bg-ink-950 px-1 py-0.5 font-mono text-[0.7rem] text-cyan">.tar.gz</code> berisi
+            {' '}<code className="rounded bg-ink-950 px-1 py-0.5 font-mono text-[0.7rem] text-cyan">database.dump</code> (format custom pg_dump),
+            folder <code className="rounded bg-ink-950 px-1 py-0.5 font-mono text-[0.7rem] text-cyan">media</code>, dan
+            {' '}<code className="rounded bg-ink-950 px-1 py-0.5 font-mono text-[0.7rem] text-cyan">manifest.json</code> dengan checksum sha256.
+            Simpan arsip di luar server agar aman bila perangkat rusak.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Tombol varian="utama" ikon={Download} memuat={unduh.isPending} disabled={!siap} onClick={() => unduh.mutate()}>Unduh cadangan</Tombol>
+            {!siap && !isPending && <span className="text-[0.72rem] text-amber">Tombol aktif setelah perkakas lengkap.</span>}
+          </div>
+        </div>
+
+        <div className="rounded-xl border p-4" style={{ borderColor: 'color-mix(in oklab, #FF4D6D 38%, transparent)', background: 'color-mix(in oklab, #FF4D6D 6%, transparent)' }}>
+          <p className="flex items-center gap-2 text-[0.9rem] font-bold text-chalk"><UploadCloud size={15} className="text-rose" /> Pulihkan dari arsip</p>
+          <p className="mt-1.5 text-[0.76rem] leading-relaxed text-mute">
+            Database dan folder media saat ini diganti dengan isi arsip. Sebelum menimpa, aplikasi membuat cadangan pengaman
+            otomatis. Peserta yang sedang mengerjakan ujian sebaiknya menunggu sampai tidak ada sesi aktif.
+          </p>
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".tar.gz,.tgz,application/gzip,application/x-gzip"
+            onChange={pilihBerkas}
+            className="hidden"
+            tabIndex={-1}
+          />
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Tombol varian="kedua" ikon={UploadCloud} disabled={!siap || pulihkan.isPending} onClick={() => inputRef.current?.click()}>Pilih arsip .tar.gz</Tombol>
+            {berkas && !tanya && <span className="truncate text-[0.72rem] text-mute">{berkas.name}</span>}
+            {!siap && !isPending && <span className="text-[0.72rem] text-amber">Tombol aktif setelah perkakas lengkap.</span>}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-2.5 border-t border-line-soft bg-ink-900/50 px-5 py-3.5">
+        <Info size={15} className="mt-0.5 flex-none text-cyan" />
+        <div className="text-[0.75rem] leading-relaxed text-mute">
+          <p>
+            Pemulihan memerlukan <code className="rounded bg-ink-950 px-1 py-0.5 font-mono text-[0.7rem] text-cyan">pg_dump</code>,
+            {' '}<code className="rounded bg-ink-950 px-1 py-0.5 font-mono text-[0.7rem] text-cyan">pg_restore</code>, dan
+            {' '}<code className="rounded bg-ink-950 px-1 py-0.5 font-mono text-[0.7rem] text-cyan">tar</code> di server. Bila tidak terdeteksi,
+            arahkan <code className="rounded bg-ink-950 px-1 py-0.5 font-mono text-[0.7rem] text-cyan">PG_BIN_DIR</code> (folder biner PostgreSQL)
+            atau <code className="rounded bg-ink-950 px-1 py-0.5 font-mono text-[0.7rem] text-cyan">PG_DUMP</code>/<code className="rounded bg-ink-950 px-1 py-0.5 font-mono text-[0.7rem] text-cyan">PG_RESTORE</code> (jalur berkas) di <code className="rounded bg-ink-950 px-1 py-0.5 font-mono text-[0.7rem] text-cyan">.env</code>.
+          </p>
+          {data && (
+            <p className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[0.68rem]">
+              {[
+                ['pg_dump', perkakas.pg_dump],
+                ['pg_restore', perkakas.pg_restore],
+                ['tar', perkakas.tar],
+              ].map(([nama, jalur]) => (
+                <span key={nama} style={{ color: jalur ? '#A3E635' : '#FFB020' }} title={jalur || 'Tidak ditemukan'}>
+                  {jalur ? <Check size={11} className="mr-1 inline" /> : <AlertTriangle size={11} className="mr-1 inline" />}
+                  {nama}: {jalur || 'tidak ditemukan'}
+                </span>
+              ))}
+            </p>
+          )}
+          <p className="mt-1.5">
+            Folder cadangan pengaman: <span className="font-mono text-[0.7rem] text-body">{data?.folder_cadangan || 'server/backups'}</span>
+          </p>
+        </div>
+      </div>
+
+      <Konfirmasi
+        state={tanya && berkas && {
+          judul: 'Pulihkan dari cadangan?',
+          keterangan: `${berkas.name} · ${ukuranTeks(berkas.size)}`,
+          ikon: AlertTriangle,
+          warna: '#FF4D6D',
+          varian: 'bahaya',
+          isi: 'Seluruh isi database dan folder media saat ini akan diganti dengan isi arsip. Cadangan pengaman dibuat lebih dulu, sehingga pemulihan masih dapat dibatalkan secara manual lewat folder cadangan.',
+          rincian: 'Setelah pemulihan selesai, aplikasi dimuat ulang otomatis. Sesi ujian yang sedang berjalan akan terputus.',
+          label: 'Ya, pulihkan sekarang',
+          ikonTombol: UploadCloud,
+        }}
+        onTutup={batalPulih}
+        onLanjut={() => pulihkan.mutate(berkas)}
+        memuat={pulihkan.isPending}
+      />
+    </section>
   )
 }
 
@@ -391,6 +618,8 @@ export default function Pengaturan() {
 
         <KelolaKelas jenjangAktif={sekolah.jenjang} />
       </section>
+
+      <CadanganData />
 
       <section className="kartu overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft p-5">

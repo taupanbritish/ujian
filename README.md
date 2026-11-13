@@ -5,10 +5,12 @@ Aplikasi **ujian berbasis komputer** (Computer-Based Test) untuk sekolah, dengan
 didistribusikan ke sekolah lain cukup dengan mengubah identitas pada berkas `.env` atau menu
 **Pengaturan Sekolah**, tanpa menulis ulang aplikasi.
 
-- **Frontend:** React 18 + Vite 6 + Tailwind CSS v4, React Router v6, TanStack Query v5.
+- **Frontend:** React 18 + Vite 6 + Tailwind CSS v4, React Router v6, TanStack Query v5, KaTeX.
 - **Backend:** Express 4 + PostgreSQL (`pg`), autentikasi JWT, hashing sandi `@node-rs/bcrypt`
-  (bcrypt native di thread pool libuv), validasi `zod`.
+  (bcrypt native di thread pool libuv), validasi `zod`, unggahan berkas `multer`.
 - **Impor/ekspor:** `xlsx` untuk impor Excel (soal, peserta, ujian) dan ekspor hasil ke CSV.
+- **Media soal:** gambar, audio, dan video dengan URL bertanda tangan (HMAC).
+- **Cadangan:** satu arsip `.tar.gz` berisi database + folder media, dapat dipulihkan dari UI.
 
 ---
 
@@ -22,11 +24,13 @@ didistribusikan ke sekolah lain cukup dengan mengubah identitas pada berkas `.en
 6. [Akun demo & data dummy](#akun-demo--data-dummy)
 7. [Hak akses per peran](#hak-akses-per-peran)
 8. [Impor Excel bank soal](#impor-excel-bank-soal)
-9. [Struktur folder](#struktur-folder)
-10. [Catatan arsitektur](#catatan-arsitektur)
-11. [Kapasitas database & auto-save](#kapasitas-database--auto-save)
-12. [Build & produksi](#build--produksi)
-13. [Pengembangan & pemeriksaan](#pengembangan--pemeriksaan)
+9. [Rumus matematika & media soal](#rumus-matematika--media-soal)
+10. [Cadangan & pemulihan](#cadangan--pemulihan)
+11. [Struktur folder](#struktur-folder)
+12. [Catatan arsitektur](#catatan-arsitektur)
+13. [Kapasitas database & auto-save](#kapasitas-database--auto-save)
+14. [Build & produksi](#build--produksi)
+15. [Pengembangan & pemeriksaan](#pengembangan--pemeriksaan)
 
 ---
 
@@ -36,15 +40,17 @@ didistribusikan ke sekolah lain cukup dengan mengubah identitas pada berkas `.en
 
 - **Ringkasan** sekolah: statistik soal, ujian, peserta, dan aktivitas terbaru.
 - **Bank Soal**: empat bentuk soal (pilihan ganda, benar/salah, isian singkat, uraian) lengkap
-  dengan kunci, bobot, tingkat kesukaran, topik, dan pembahasan. Tampilan tabel/kartu, filter
-  tersimpan, duplikat, dan arsip (soft delete). **Impor Excel** + unduh template.
+  dengan kunci, bobot, tingkat kesukaran, topik, dan pembahasan. Mendukung **rumus matematika**
+  (KaTeX) serta **lampiran gambar/audio/video**. Tampilan tabel/kartu, filter tersimpan,
+  duplikat, dan arsip (soft delete). **Impor Excel** + unduh template.
 - **Ujian**: penyusun paket soal, token akses, jadwal mulai/selesai, durasi, kelas target,
   pengacakan soal/opsi. **Impor Excel** untuk membuat banyak ujian sekaligus.
 - **Pengawasan** langsung: status peserta, progres pengerjaan, sisa waktu, dan log aktivitas.
 - **Hasil & Nilai**: penilaian otomatis (PG/benar-salah/isian) dan manual (uraian), ekspor CSV.
 - **Mata Pelajaran** per jenjang + katalog rekomendasi bawaan; penentuan guru pengampu.
 - **Peserta & Akun**: CRUD akun, **impor Excel** peserta dengan pembangkitan sandi acak.
-- **Pengaturan Sekolah**: nama sekolah, nama aplikasi, tahun ajaran, jenjang, dan kelas manual (rombel).
+- **Pengaturan Sekolah**: nama sekolah, nama aplikasi, tahun ajaran, jenjang, kelas manual (rombel),
+  serta **cadangan & pemulihan** database + folder media dalam satu arsip.
 
 **Guru**
 
@@ -198,6 +204,10 @@ Salin dari `.env.example`. Nilai penting:
 | `DATABASE_PGBOUNCER` | `false` | `true` bila `DATABASE_URL` menunjuk PgBouncer |
 | `JWT_SECRET` | ganti untuk produksi | Rahasia penandatanganan token; pakai `openssl rand -hex 32` |
 | `JWT_EXPIRES` | `12h` | Masa berlaku token |
+| `MEDIA_DIR` | `server/uploads` | Folder berkas gambar/audio/video soal; arahkan ke volume persisten di produksi |
+| `MEDIA_SECRET` | `JWT_SECRET` | Rahasia HMAC URL media; ganti bila URL media ingin terpisah dari token sesi |
+| `PG_BIN_DIR` / `PG_DUMP` / `PG_RESTORE` | otomatis | Jalur perkakas cadangan bila tidak terdeteksi di `PATH` |
+| `BACKUP_DIR` | `server/backups` | Folder cadangan pengaman otomatis sebelum pemulihan |
 | `SEED_ADMIN_EMAIL` | `admin@cendekia.sch.id` | Email admin yang dibuat seeder |
 | `SEED_ADMIN_PASSWORD` | `"Cendekia#2026"` | Sandi admin (kutip bila mengandung `#`/`$`) |
 | `SEED_GURU_PASSWORD` | `"Cendekia#2026"` | Sandi guru |
@@ -221,6 +231,32 @@ dari menu **Pengaturan Sekolah** (admin) tanpa seed ulang. Jenjang dikunci saat 
 
 Seeder minimal menghasilkan **7 akun, 1 mata pelajaran, 10 butir soal, 0 ujian** — keadaan
 bersih yang siap dipakai menyusun ujian pertama.
+
+### Akun administrator
+
+Akun ini memiliki akses penuh ke seluruh menu: Ringkasan, Bank Soal, Ujian, Pengawasan,
+Hasil, Mata Pelajaran, Peserta & Akun, serta Pengaturan.
+
+| Item | Nilai bawaan |
+|---|---|
+| Nama | Administrator Sekolah |
+| Email | `admin@cendekia.sch.id` |
+| NIS | `ADM-001` |
+| Kata sandi | `Cendekia#2026` |
+
+Cara masuk:
+
+1. Buka `/masuk`, lalu isi **Email atau NIS** dengan `admin@cendekia.sch.id` (atau `ADM-001`).
+2. Isi **Kata sandi** dengan `Cendekia#2026`, lalu klik **Masuk sekarang**.
+3. Setelah masuk, ganti kata sandi lewat menu **Profil** agar tidak memakai sandi demo.
+
+Nilai tersebut berasal dari `SEED_ADMIN_EMAIL` dan `SEED_ADMIN_PASSWORD` di `.env` dan hanya
+dibuat saat `npm run db:seed` pertama kali (atau `db:seed --force`). Jika database sudah
+terisi, mengubah `.env` **tidak** mengubah sandi akun yang sudah ada; gunakan menu Profil
+atau reset sandi dari Peserta & Akun. Untuk produksi, isi `SEED_ADMIN_PASSWORD` dengan sandi
+kuat **sebelum** seeding, lalu set `DEMO_MASUK=false`.
+
+### Akun demo lainnya
 
 | Peran | Nama | Email | NIS | Sandi |
 |---|---|---|---|---|
@@ -282,6 +318,10 @@ maksimal **500 baris per impor**, sehingga file lebih besar perlu dipecah. Terse
 | `bobot` | – | `1` | `score`, `weight` |
 | `topik` | – | `Berpikir Komputasional` | `materi` |
 | `pembahasan` | – | `Algoritma adalah urutan langkah …` | `explanation` |
+| `gambar` | – | `https://…/diagram.png` | `foto`, `image`, `url gambar`, `tautan gambar` |
+| `gambar_alt` | – | `Diagram alur algoritma` | `alt gambar`, `teks alternatif` |
+| `audio` | – | `https://…/percakapan.mp3` | `suara`, `tautan audio` |
+| `video` | – | `https://…/demonstrasi.mp4` | `tautan video` |
 
 ² Bila hanya ada satu mapel yang dapat diakses (mis. guru dengan satu mapel), kolom `mapel`
 boleh kosong dan otomatis dipakai mapel tersebut. Bila ada lebih dari satu, kolom `mapel`
@@ -291,6 +331,84 @@ persis). Untuk benar/salah, `kunci` = `benar`/`salah`. Untuk isian, `kunci` = te
 
 Bentuk soal yang diterima: `pilihan_ganda`/`pg`, `benar_salah`/`bs`, `isian`/`is`, `esai`/`es`/`uraian`/`essay`.
 Hasil impor melaporkan jumlah **dibuat**, **galat**, dan rincian galat per nomor baris.
+
+Kolom `gambar`/`audio`/`video` berisi **tautan eksternal** (`http://` atau `https://`). Beberapa
+tautan dalam satu sel dipisahkan tanda `;`. Kolom ini tidak mengunggah berkas — untuk berkas
+lokal, unggah lewat editor soal setelah impor. Rumus matematika juga dapat ditulis langsung di
+`pertanyaan`, `opsi_*`, `kunci`, dan `pembahasan` memakai `$...$` (lihat bagian berikutnya).
+
+---
+
+## Rumus matematika & media soal
+
+### Rumus (KaTeX)
+
+Semua teks soal dirender oleh komponen `TeksSoal`. Rumus ditulis dengan pembatas berikut:
+
+| Pembatas | Tampilan | Contoh |
+|---|---|---|
+| `$...$` | sebaris (inline) | `Nilai $x^2 + 3x = 10$ adalah …` |
+| `$$...$$` | blok terpisah di tengah | `$$\frac{-b \pm \sqrt{b^2-4ac}}{2a}$$` |
+| `\(...\)` / `\[...\]` | alternatif LaTeX | `\[\int_0^1 x^2\,dx\]` |
+
+Tanda `$` yang dimaksud harfiah dapat di-*escape* dengan `\$`. Editor soal menyediakan tombol
+sisip cepat (pecahan, pangkat, akar, integral, matriks, dan lainnya) yang menyisipkan rumus pada
+posisi kursor, plus pratinjau langsung di bawah pertanyaan. KaTeX dimuat malas (`lazy import`)
+sehingga halaman yang tidak memuat rumus tidak mengunduh pustaka tersebut. Bila sebuah rumus
+tidak valid, teks mentahnya tetap ditampilkan agar soal tidak hilang.
+
+Rumus juga tampil di lembar ujian peserta, halaman hasil peserta, bank soal, detail ujian,
+monitoring nilai, dan panel penilaian uraian.
+
+### Lampiran gambar, audio, video
+
+- Dikelola dari editor soal: **unggah berkas** atau **tempel tautan**, dengan teks alternatif
+  untuk gambar dan pengurutan tampil. Maksimal **10 lampiran per butir soal**, termasuk lampiran
+  pada masing-masing opsi jawaban.
+- Batas ukuran per berkas: **gambar 5 MB**, **audio 20 MB**, **video 50 MB**. Jenis berkas
+  dideteksi dari isi (magic bytes), bukan dari nama atau header klien — berkas yang menyamar
+  dengan ekstensi lain ditolak.
+- Format yang diterima: JPEG/PNG/GIF/WebP, MP3/OGG/WAV/M4A, MP4/WebM.
+- Berkas unggahan disajikan melalui URL bertanda tangan HMAC (`/api/media/:id/berkas?e=…&t=…`)
+  yang berlaku **12 jam**. Tautan gambar/video tidak dapat mengirim header `Authorization`, jadi
+  tanda tangan inilah yang mencegah berkas soal diakses publik. URL yang bocor menjadi mati
+  sendiri setelah kedaluwarsa.
+- Video YouTube/Vimeo cukup ditempel sebagai tautan; pemutar baru dimuat setelah diklik agar
+  halaman ujian tetap ringan.
+- Berkas yang masih dipakai paket soal tidak dapat dihapus. Lampiran baru benar-benar dihapus
+  dari server setelah soal disimpan tanpa merujuk berkas tersebut.
+- Folder penyimpanan bawaan: `server/uploads` (ubah lewat `MEDIA_DIR`). Di produksi, arahkan
+  ke volume persisten agar berkas tidak hilang saat deploy. Berkas media **tidak** disajikan
+  sebagai aset statis publik.
+
+---
+
+## Cadangan & pemulihan
+
+Menu **Pengaturan Sekolah → Cadangan & pemulihan** (khusus administrator) membuat satu arsip
+`.tar.gz` berisi:
+
+```
+cadangan-cendekia-YYYY-MM-DDTHH-MM-SS.tar.gz
+├── database.dump      # pg_dump format custom (-Fc)
+├── media/             # seluruh berkas gambar, audio, video
+└── manifest.json      # waktu, info basis data, jumlah media, sha256 database
+```
+
+Alur **Unduh cadangan** menjalankan `pg_dump`, menyalin folder media, menulis manifest, lalu
+mengirim arsip sebagai unduhan. Alur **Pulihkan dari arsip** memverifikasi checksum, membuat
+**cadangan pengaman** lebih dulu (tersimpan di `server/backups`, lihat `BACKUP_DIR`), menjalankan
+`pg_restore --clean --if-exists`, lalu menukar folder media. Bila pemulihan database gagal, data
+lama tidak disentuh; bila penukaran media gagal, folder lama dikembalikan.
+
+Prasyarat di server: `pg_dump`, `pg_restore`, dan `tar` tersedia di `PATH` atau ditunjuk lewat
+`PG_BIN_DIR`, `PG_DUMP`, dan `PG_RESTORE`. Status perkakas, folder media, jumlah media, dan
+jumlah cadangan pengaman ditampilkan di panel tersebut. Arsip disimpan sementara di folder
+sistem lalu dihapus setelah dikirim; simpan salinan arsip di luar server. Batas unggahan arsip
+pemulihan **2 GB**.
+
+Pemulihan mengganti **seluruh** database dan folder media. Lakukan saat tidak ada ujian
+berlangsung; sesi peserta yang aktif akan terputus dan halaman dimuat ulang setelah pemulihan.
 
 ---
 
@@ -308,7 +426,8 @@ Hasil impor melaporkan jumlah **dibuat**, **galat**, dan rincian galat per nomor
 │   ├── main.jsx             # Bootstrap React + QueryClient + Router
 │   ├── App.jsx              # Rute bersarang + guard peran
 │   ├── index.css            # Tailwind v4 + token desain
-│   ├── components/          # AppShell, ui, ImporExcel, SoalForm, UjianForm, charts, Logo
+│   ├── components/          # AppShell, ui, ImporExcel, SoalForm, TeksSoal (KaTeX),
+│   │                        # LampiranSoal, KelolaLampiran, HitungMundur, charts, Logo
 │   ├── context/             # AuthContext (sesi JWT)
 │   ├── lib/                 # klien API, util
 │   └── pages/
@@ -321,9 +440,12 @@ Hasil impor melaporkan jumlah **dibuat**, **galat**, dan rincian galat per nomor
     ├── index.js             # Express, rute API, penyajian dist/ saat produksi
     ├── middleware/auth.js   # wajibMasuk, boleh, staf (JWT)
     ├── lib/                 # http, guru (scoping), jenjang, pengaturan, penilaian,
-    │                        # sandi (bcrypt native), jawaban (batch UPSERT), ujian
+    │                        # sandi (bcrypt native), jawaban (batch UPSERT), ujian,
+    │                        # media (deteksi & URL bertanda tangan), cadangan
     ├── routes/              # auth, soal, ujian, monitoring, hasil, pengguna, mapel,
-    │                        # ringkasan, siswa, pengaturan
+    │                        # ringkasan, siswa, pengaturan, media
+    ├── uploads/             # Berkas media soal (dibuat otomatis, tidak di-commit)
+    ├── backups/             # Cadangan pengaman (dibuat otomatis, tidak di-commit)
     └── db/
         ├── schema.sql       # Skema + migrasi idempoten
         ├── migrate.js       # Menjalankan schema.sql
@@ -336,7 +458,9 @@ Hasil impor melaporkan jumlah **dibuat**, **galat**, dan rincian galat per nomor
 ```
 
 Tabel database: `pengguna`, `mapel`, `rombel`, `soal`, `ujian`, `ujian_soal`, `percobaan`,
-`jawaban`, `aktivitas`, `pengaturan`. Penghapusan bersifat *soft delete* (`dihapus_pada`).
+`jawaban`, `aktivitas`, `pengaturan`, `media`. Penghapusan soal/pengguna bersifat *soft delete*
+(`dihapus_pada`). Lampiran soal tersimpan di kolom JSONB `soal.lampiran` dan
+`soal.opsi[].lampiran`; berkas fisiknya berada di `media` + folder `MEDIA_DIR`.
 
 ---
 
@@ -357,6 +481,16 @@ Tabel database: `pengguna`, `mapel`, `rombel`, `soal`, `ujian`, `ujian_soal`, `p
   `@node-rs/bcrypt` (cost 10). Perhitungan berjalan di thread pool libuv, bukan di thread JS
   utama, sehingga gelombang login bersamaan tidak memblokir event loop. Hash lama `$2a$`/`$2b$`
   hasil bcryptjs tetap valid tanpa migrasi data.
+- **Rumus tanpa membebani bundel:** `TeksSoal` memecah teks menjadi potongan biasa dan potongan
+  rumus, lalu mengimpor KaTeX secara malas hanya saat ada rumus. `trust: false` dan
+  `throwOnError: false` mencegah HTML/`\href` berbahaya serta membuat rumus rusak jatuh ke teks
+  mentah, bukan merusak halaman.
+- **Media privat:** unggahan disimpan di luar `dist/` dan hanya disajikan lewat rute bertanda
+  tangan berumur 12 jam. Tipe berkas ditentukan dari magic bytes; batas ukuran berbeda per jenis.
+  Penghapusan media menolak berkas yang masih dirujuk soal (termasuk lampiran opsi).
+- **Cadangan mandiri:** `server/lib/cadangan.js` membungkus `pg_dump -Fc`, salinan folder media,
+  dan manifest checksum sha256 menjadi satu `.tar.gz`. Pemulihan selalu membuat cadangan
+  pengaman lebih dulu dan menukar folder media secara atomik dengan rollback.
 
 ---
 
@@ -442,6 +576,10 @@ Checklist sebelum publik:
    (bawaan 4) dan/atau jalankan beberapa proses (cluster/PM2) di belakang proxy.
 8. Sesuaikan `DATABASE_POOL_MAX` dengan spesifikasi server database; bila peserta serentak
    > 500 atau API berjalan banyak proses, pasang PgBouncer (`deploy/pgbouncer/`).
+9. Pastikan `MEDIA_DIR` dan `BACKUP_DIR` menunjuk folder **persisten** (bukan di dalam `dist/`),
+   dan `pg_dump`/`pg_restore`/`tar` tersedia untuk fitur cadangan.
+10. Buat cadangan pertama dari **Pengaturan → Cadangan & pemulihan** lalu simpan salinannya di
+    luar server.
 
 ---
 

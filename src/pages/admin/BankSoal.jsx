@@ -14,6 +14,8 @@ import {
 } from '../../components/ui'
 import SoalForm from '../../components/SoalForm'
 import ImporExcel from '../../components/ImporExcel'
+import TeksSoal from '../../components/TeksSoal'
+import LampiranSoal from '../../components/LampiranSoal'
 import { TIPE, TINGKAT, tanggal, jawabanTeks } from '../../lib/format'
 
 const KUNCI_TAMPILAN = 'cendekia.tampilan-soal'
@@ -33,6 +35,10 @@ const KOLOM_IMPOR_SOAL = [
   { kunci: 'bobot', label: 'Bobot', contoh: '1', alias: ['score', 'weight'] },
   { kunci: 'topik', label: 'Topik', contoh: 'Berpikir Komputasional', alias: ['materi'] },
   { kunci: 'pembahasan', label: 'Pembahasan', contoh: 'Algoritma adalah urutan langkah terbatas yang menghasilkan solusi.', alias: ['explanation'] },
+  { kunci: 'gambar', label: 'Gambar', contoh: 'https://sekolah.sch.id/grafik.png', alias: ['foto', 'image', 'url gambar', 'tautan gambar'] },
+  { kunci: 'gambar_alt', label: 'Alt Gambar', contoh: 'Grafik parabola membuka ke atas', alias: ['teks alternatif', 'alt'] },
+  { kunci: 'audio', label: 'Audio', contoh: 'https://sekolah.sch.id/percakapan.mp3', alias: ['suara', 'sound', 'tautan audio'] },
+  { kunci: 'video', label: 'Video', contoh: 'https://youtu.be/abc123', alias: ['tautan video', 'vidio'] },
 ]
 const BAWAAN = [
   { nama: 'Semua soal', filter: {} },
@@ -44,7 +50,8 @@ const BAWAAN = [
 function PratinjauSoal({ soal, ringkas = false }) {
   return (
     <div className="kertas rounded-2xl border border-paper-line p-4">
-      <p className="whitespace-pre-line text-[0.9rem] leading-relaxed font-medium text-paper-ink">{soal.pertanyaan}</p>
+      <p className="whitespace-pre-line text-[0.9rem] leading-relaxed font-medium text-paper-ink"><TeksSoal teks={soal.pertanyaan} /></p>
+      <LampiranSoal lampiran={soal.lampiran} tema="kertas" />
       {soal.tipe === 'pilihan_ganda' && (
         <ul className="mt-3 space-y-1.5">
           {soal.opsi.map((o) => (
@@ -59,7 +66,10 @@ function PratinjauSoal({ soal, ringkas = false }) {
               >
                 {o.id.toUpperCase()}
               </span>
-              <span className={soal.kunci === o.id ? 'font-bold text-paper-ink' : 'text-paper-ink/80'}>{o.teks}</span>
+              <span className="min-w-0 flex-1">
+                <span className={soal.kunci === o.id ? 'font-bold text-paper-ink' : 'text-paper-ink/80'}><TeksSoal teks={o.teks} /></span>
+                {o.lampiran?.length > 0 && <LampiranSoal lampiran={o.lampiran} tema="kertas" kompak />}
+              </span>
             </li>
           ))}
         </ul>
@@ -70,12 +80,12 @@ function PratinjauSoal({ soal, ringkas = false }) {
         </p>
       )}
       {soal.tipe === 'isian' && (
-        <p className="mt-3 text-[0.84rem] text-paper-ink/80">Kunci diterima: <span className="font-mono font-bold text-paper-ink">{soal.kunci}</span></p>
+        <p className="mt-3 text-[0.84rem] text-paper-ink/80">Kunci diterima: <span className="font-mono font-bold text-paper-ink"><TeksSoal teks={soal.kunci} /></span></p>
       )}
       {soal.tipe === 'esai' && soal.kunci && !ringkas && (
         <div className="mt-3 rounded-lg border border-paper-line bg-white/50 p-2.5">
           <p className="font-mono text-[0.6rem] font-bold tracking-widest text-paper-ink/60 uppercase">Pedoman penskoran</p>
-          <p className="mt-1 text-[0.8rem] leading-relaxed text-paper-ink/85">{soal.kunci}</p>
+          <p className="mt-1 text-[0.8rem] leading-relaxed text-paper-ink/85"><TeksSoal teks={soal.kunci} /></p>
         </div>
       )}
     </div>
@@ -368,7 +378,7 @@ export default function BankSoal() {
                           </td>
                           <td className="max-w-[420px] p-3">
                             <button onClick={() => { bunyi('buka'); setDetail(s) }} className="text-left">
-                              <p className="line-clamp-2 text-[0.85rem] leading-snug font-semibold text-chalk transition hover:text-cyan">{s.pertanyaan}</p>
+                              <p className="line-clamp-2 text-[0.85rem] leading-snug font-semibold text-chalk transition hover:text-cyan"><TeksSoal teks={s.pertanyaan} /></p>
                               <p className="mt-1 flex items-center gap-2 text-[0.7rem] text-mute">
                                 <span className="font-mono">#{s.id}</span>
                                 {s.topik && <><span className="size-1 rounded-full bg-line" /><span className="truncate">{s.topik}</span></>}
@@ -414,7 +424,7 @@ export default function BankSoal() {
                       </button>
                     </div>
                     <button onClick={() => { bunyi('buka'); setDetail(s) }} className="mt-3 flex-1 text-left">
-                      <p className="line-clamp-4 text-[0.86rem] leading-relaxed font-medium text-body transition hover:text-chalk">{s.pertanyaan}</p>
+                      <p className="line-clamp-4 text-[0.86rem] leading-relaxed font-medium text-body transition hover:text-chalk"><TeksSoal teks={s.pertanyaan} /></p>
                     </button>
                     <div className="mt-3 flex items-center justify-between border-t border-line-soft pt-3">
                       <span className="flex items-center gap-2 text-[0.7rem] text-mute">
@@ -445,7 +455,7 @@ export default function BankSoal() {
         terbuka={imporTerbuka}
         onTutup={() => setImporTerbuka(false)}
         judul="Import soal dari Excel"
-        keterangan="Unggah berkas .xlsx/.xls/.csv berisi butir soal. Bentuk soal, pertanyaan, dan kunci wajib diisi; opsi A–E dipakai untuk pilihan ganda."
+        keterangan="Unggah berkas .xlsx/.xls/.csv berisi butir soal. Bentuk soal, pertanyaan, dan kunci wajib diisi; opsi A–E dipakai untuk pilihan ganda. Rumus ditulis di antara $...$ dan lampiran diisi sebagai tautan http(s) pada kolom Gambar/Audio/Video (pisahkan beberapa tautan dengan titik koma)."
         ikon={FileSpreadsheet}
         warna="#7C5CFF"
         lebar="max-w-4xl"
@@ -508,7 +518,7 @@ export default function BankSoal() {
             {detail.pembahasan && (
               <div className="rounded-2xl border border-cyan/30 bg-cyan/8 p-4">
                 <p className="mb-1.5 font-mono text-[0.65rem] font-bold tracking-widest text-cyan uppercase">Pembahasan</p>
-                <p className="whitespace-pre-line text-[0.85rem] leading-relaxed text-body">{detail.pembahasan}</p>
+                <p className="whitespace-pre-line text-[0.85rem] leading-relaxed text-body"><TeksSoal teks={detail.pembahasan} /></p>
               </div>
             )}
             <div className="rounded-2xl border border-line-soft bg-ink-950/40 p-4">
@@ -532,7 +542,7 @@ export default function BankSoal() {
               <p className="text-[0.75rem] text-mute">Jawaban peserta dinilai benar bila sama dengan salah satu alternatif kunci: <span className="font-mono text-chalk">{detail.kunci.split('|').join(' / ')}</span> (huruf besar-kecil dan tanda baca diabaikan).</p>
             )}
             {jawabanTeks(detail, detail.kunci) && detail.tipe !== 'isian' && detail.tipe !== 'esai' && (
-              <p className="text-[0.75rem] text-mute">Kunci tersimpan: <span className="font-semibold text-lime">{jawabanTeks(detail, detail.kunci)}</span></p>
+              <p className="text-[0.75rem] text-mute">Kunci tersimpan: <span className="font-semibold text-lime"><TeksSoal teks={jawabanTeks(detail, detail.kunci)} /></span></p>
             )}
           </div>
         )}

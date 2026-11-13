@@ -13,6 +13,7 @@ import {
   Tombol, Pil, Kosong, Galat, Rangka, Segmen, Salin, Avatar, BilahProgres, OpsiMapel,
 } from '../../components/ui'
 import UjianForm from '../../components/UjianForm'
+import TeksSoal from '../../components/TeksSoal'
 import { TIPE, TINGKAT, STATUS_UJIAN, tanggal, hitungMundur, nilaiTeks } from '../../lib/format'
 
 export default function UjianDetail() {
@@ -228,7 +229,7 @@ export default function UjianDetail() {
                         <span className="grid size-6 place-items-center rounded-md bg-ink-700 font-mono text-[0.7rem] font-bold text-chalk">{i + 1}</span>
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="line-clamp-2 text-[0.82rem] leading-snug font-medium text-body">{d.pertanyaan}</p>
+                        <p className="line-clamp-2 text-[0.82rem] leading-snug font-medium text-body"><TeksSoal teks={d.pertanyaan} /></p>
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                           <Pil warna={TIPE[d.tipe].warna}>{TIPE[d.tipe].singkat}</Pil>
                           <Pil warna={TINGKAT[d.tingkat].warna}>{TINGKAT[d.tingkat].label}</Pil>
@@ -292,7 +293,7 @@ export default function UjianDetail() {
               ) : kandidat.map((x) => (
                 <div key={x.id} className="group flex items-start gap-2 rounded-xl border border-line-soft bg-ink-950/40 p-2.5 transition hover:border-violet/50">
                   <div className="min-w-0 flex-1">
-                    <p className="line-clamp-2 text-[0.8rem] leading-snug text-body">{x.pertanyaan}</p>
+                    <p className="line-clamp-2 text-[0.8rem] leading-snug text-body"><TeksSoal teks={x.pertanyaan} /></p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       <Pil warna={x.mapel_warna}>{x.mapel_kode}</Pil>
                       <Pil warna={TIPE[x.tipe].warna}>{TIPE[x.tipe].singkat}</Pil>

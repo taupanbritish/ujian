@@ -4,6 +4,7 @@ import { q, satu, transaksi } from '../db/pool.js'
 import { bungkus, Galat, angka, bersih } from '../lib/http.js'
 import { nilaiPercobaan, catatAktivitas } from '../lib/ujian.js'
 import { batasiMapel, milikGuru } from '../lib/guru.js'
+import { tautkanLampiran } from '../lib/media.js'
 
 const r = Router()
 
@@ -99,7 +100,7 @@ r.get('/:id', bungkus(async (req, res) => {
     if (!milikGuru(gm, mid?.mapel_id)) throw new Galat(404, 'Hasil ujian tidak ditemukan.')
   }
   const detail = await q(
-    `SELECT s.id AS soal_id, s.tipe, s.pertanyaan, s.opsi, s.kunci, s.pembahasan, s.tingkat, s.topik, us.bobot, us.urutan,
+    `SELECT s.id AS soal_id, s.tipe, s.pertanyaan, s.opsi, s.lampiran, s.kunci, s.pembahasan, s.tingkat, s.topik, us.bobot, us.urutan,
             j.id AS jawaban_id, j.isi, j.ragu, j.skor, j.catatan, j.dinilai_oleh, j.diubah_pada, g.nama AS penilai
      FROM ujian_soal us
      JOIN soal s ON s.id=us.soal_id
@@ -117,7 +118,13 @@ r.get('/:id', bungkus(async (req, res) => {
   )
   res.json({
     percobaan: { ...percobaan, nilai: percobaan.nilai === null ? null : Number(percobaan.nilai), kkm: Number(percobaan.kkm) },
-    detail: detail.rows.map((d) => ({ ...d, bobot: Number(d.bobot), skor: d.skor === null ? null : Number(d.skor) })),
+    detail: detail.rows.map((d) => ({
+      ...d,
+      bobot: Number(d.bobot),
+      skor: d.skor === null ? null : Number(d.skor),
+      lampiran: tautkanLampiran(d.lampiran),
+      opsi: (d.opsi || []).map((o) => ({ ...o, lampiran: tautkanLampiran(o.lampiran) })),
+    })),
     rekan,
   })
 }))

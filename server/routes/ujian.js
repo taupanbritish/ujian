@@ -5,6 +5,7 @@ import { bungkus, Galat, angka, bersih, tokenAcak, statusUjian } from '../lib/ht
 import { catatAktivitas } from '../lib/ujian.js'
 import { getPengaturan } from '../lib/pengaturan.js'
 import { batasiMapel, milikGuru } from '../lib/guru.js'
+import { tautkanSoal } from '../lib/media.js'
 
 const r = Router()
 
@@ -46,7 +47,7 @@ r.get('/:id', bungkus(async (req, res) => {
   if (!u) throw new Galat(404, 'Ujian tidak ditemukan.')
   if (!milikGuru(await batasiMapel(req), u.mapel_id)) throw new Galat(404, 'Ujian tidak ditemukan.')
   const soal = await q(
-    `SELECT us.urutan, us.bobot, s.id, s.tipe, s.pertanyaan, s.opsi, s.kunci, s.pembahasan, s.tingkat, s.topik,
+    `SELECT us.urutan, us.bobot, s.id, s.tipe, s.pertanyaan, s.opsi, s.lampiran, s.kunci, s.pembahasan, s.tingkat, s.topik,
             m.nama AS mapel_nama, m.warna AS mapel_warna
      FROM ujian_soal us JOIN soal s ON s.id=us.soal_id JOIN mapel m ON m.id=s.mapel_id
      WHERE us.ujian_id=$1 AND s.dihapus_pada IS NULL ORDER BY us.urutan`,
@@ -62,7 +63,7 @@ r.get('/:id', bungkus(async (req, res) => {
      ORDER BY p.kelas, p.nama`,
     [u.id],
   )
-  res.json({ ujian: { ...u, status_efektif: statusUjian(u) }, soal: soal.rows, peserta: peserta.rows })
+  res.json({ ujian: { ...u, status_efektif: statusUjian(u) }, soal: soal.rows.map((s) => tautkanSoal(s)), peserta: peserta.rows })
 }))
 
 const skemaUjian = z.object({

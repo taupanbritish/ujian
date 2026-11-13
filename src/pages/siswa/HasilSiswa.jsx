@@ -14,6 +14,8 @@ import {
   Tombol, Pil, Cincin, BilahProgres, Kosong, Galat, Rangka, Segmen, Avatar,
 } from '../../components/ui'
 import { TIPE, nilaiTeks, warnaNilai, tanggal, jamSaja, durasiPendek, jawabanTeks, namaPanggilan } from '../../lib/format'
+import TeksSoal from '../../components/TeksSoal'
+import LampiranSoal from '../../components/LampiranSoal'
 
 function statusJawaban(d) {
   if (!(d.isi || '').trim()) return { kunci: 'kosong', label: 'Kosong', warna: '#8A93B8', ikon: CircleSlash }
@@ -274,7 +276,9 @@ export default function HasilSiswa() {
                   <Pil warna={st.warna} ikon={Ikon}>{st.label}</Pil>
                 </div>
 
-                <p className="mt-3 text-[0.95rem] leading-relaxed whitespace-pre-wrap text-chalk">{d.pertanyaan}</p>
+                <p className="mt-3 text-[0.95rem] leading-relaxed whitespace-pre-wrap text-chalk"><TeksSoal teks={d.pertanyaan} /></p>
+
+                <LampiranSoal lampiran={d.lampiran} tema="gelap" />
 
                 {d.opsi?.length > 0 && (
                   <ul className="mt-3 space-y-1.5">
@@ -284,7 +288,7 @@ export default function HasilSiswa() {
                       return (
                         <li
                           key={o.id}
-                          className="flex items-start gap-2.5 rounded-xl border px-3 py-2 text-[0.85rem] leading-snug"
+                          className="flex flex-wrap items-start gap-2.5 rounded-xl border px-3 py-2 text-[0.85rem] leading-snug"
                           style={{
                             borderColor: benar ? 'rgba(163,230,53,0.45)' : dipilih ? (d.skor >= 1 ? 'rgba(163,230,53,0.45)' : 'rgba(255,77,109,0.45)') : '#1c2549',
                             background: benar ? 'rgba(163,230,53,0.09)' : dipilih ? (d.skor >= 1 ? 'rgba(163,230,53,0.09)' : 'rgba(255,77,109,0.09)') : 'rgba(5,7,15,0.4)',
@@ -294,9 +298,12 @@ export default function HasilSiswa() {
                           <span className="mt-px grid size-5 flex-none place-items-center rounded-full border border-current/40 font-mono text-[0.62rem] font-bold">
                             {d.tipe === 'benar_salah' ? (o.id === 'benar' ? 'B' : 'S') : String.fromCharCode(65 + i)}
                           </span>
-                          <span className="flex-1">{o.teks}</span>
+                          <span className="flex-1"><TeksSoal teks={o.teks} /></span>
                           {dipilih && <span className="flex-none rounded-md bg-current/15 px-1.5 py-0.5 text-[0.6rem] font-bold tracking-wide uppercase">jawabanmu</span>}
                           {benar && <CheckCircle2 size={14} className="mt-px flex-none text-lime" />}
+                          {o.lampiran?.length > 0 && (
+                            <LampiranSoal lampiran={o.lampiran} tema="gelap" kompak className="w-full basis-full" />
+                          )}
                         </li>
                       )
                     })}
@@ -307,7 +314,7 @@ export default function HasilSiswa() {
                   <div className="mt-3 grid gap-2 lg:grid-cols-2">
                     <div className="rounded-xl border border-line-soft bg-ink-950/50 p-3">
                       <p className="text-[0.62rem] font-bold tracking-widest text-mute uppercase">Jawabanmu</p>
-                      <p className={`mt-1.5 text-[0.86rem] leading-relaxed whitespace-pre-wrap ${jawaban ? 'text-chalk' : 'text-mute italic'}`}>{jawaban || 'Tidak dijawab'}</p>
+                      <p className={`mt-1.5 text-[0.86rem] leading-relaxed whitespace-pre-wrap ${jawaban ? 'text-chalk' : 'text-mute italic'}`}>{jawaban ? <TeksSoal teks={jawaban} /> : 'Tidak dijawab'}</p>
                     </div>
                     {d.tipe === 'esai' ? (
                       <div className="rounded-xl border border-pink/30 bg-pink/8 p-3">
@@ -324,7 +331,7 @@ export default function HasilSiswa() {
                     ) : data.pembahasan_terbuka && (
                       <div className="rounded-xl border border-lime/30 bg-lime/8 p-3">
                         <p className="text-[0.62rem] font-bold tracking-widest text-lime uppercase">Kunci jawaban</p>
-                        <p className="mt-1.5 text-[0.86rem] leading-relaxed whitespace-pre-wrap text-chalk">{d.kunci || '—'}</p>
+                        <p className="mt-1.5 text-[0.86rem] leading-relaxed whitespace-pre-wrap text-chalk"><TeksSoal teks={d.kunci || '—'} /></p>
                       </div>
                     )}
                   </div>
@@ -340,10 +347,10 @@ export default function HasilSiswa() {
                       <BookOpen size={14} /> Pembahasan
                       <ChevronRight size={13} className="ml-auto transition group-open:rotate-90" />
                     </summary>
-                    <p className="mt-2 text-[0.84rem] leading-relaxed whitespace-pre-wrap text-body">{d.pembahasan}</p>
+                    <p className="mt-2 text-[0.84rem] leading-relaxed whitespace-pre-wrap text-body"><TeksSoal teks={d.pembahasan} /></p>
                     {d.tipe !== 'esai' && d.kunci && (
                       <p className="mt-2 border-t border-cyan/20 pt-2 text-[0.78rem] text-mute">
-                        Kunci: <span className="font-mono font-bold text-lime">{d.tipe === 'pilihan_ganda' || d.tipe === 'benar_salah' ? (d.opsi.find((o) => o.id === d.kunci)?.teks || d.kunci) : d.kunci}</span>
+                        Kunci: <span className="font-mono font-bold text-lime"><TeksSoal teks={d.tipe === 'pilihan_ganda' || d.tipe === 'benar_salah' ? (d.opsi.find((o) => o.id === d.kunci)?.teks || d.kunci) : d.kunci} /></span>
                       </p>
                     )}
                   </details>
