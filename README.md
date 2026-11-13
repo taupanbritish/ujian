@@ -51,7 +51,8 @@ didistribusikan ke sekolah lain cukup dengan mengubah identitas pada berkas `.en
 - **Laporan nilai**: rekap per mata pelajaran dan kelas, ringkasan per ujian, daftar nilai peserta,
   unduhan CSV, serta **cetak PDF berkop surat** (logo, nama, dan alamat sekolah).
 - **Kartu Ujian**: cetak kartu peserta per ujian/kelas dalam tata letak A4. Kartu memuat logo dan
-  nama sekolah, alamat, identitas peserta, **foto peserta**, jadwal, dan durasi ujian.
+  nama sekolah, alamat, identitas peserta, **foto peserta**, **username/NIS**, **password ujian
+  (token)**, jadwal, dan durasi ujian.
 - **Mata Pelajaran** per jenjang + katalog rekomendasi bawaan; penentuan guru pengampu.
 - **Peserta & Akun**: CRUD akun, **impor Excel** peserta dengan pembangkitan sandi acak, serta
   unggah **foto peserta** (rasio 3:4) untuk kartu ujian.
@@ -157,7 +158,8 @@ cp .env.example .env
 # 3. Buat skema database
 npm run db:migrate
 
-# 4. Isi data dummy minimal (1 admin, 1 guru, 5 siswa, 1 mapel, 10 soal)
+# 4. Isi data dummy (1 admin, 2 guru, 4 siswa, 1 mapel Informatika jenjang SMK,
+#    5 soal, 1 ujian demo, dan 4 foto peserta untuk kartu)
 npm run db:seed
 
 # 5. Jalankan API + frontend sekaligus
@@ -237,8 +239,9 @@ dari menu **Pengaturan Sekolah** (admin) tanpa seed ulang. Jenjang dikunci saat 
 
 ## Akun demo & data dummy
 
-Seeder minimal menghasilkan **7 akun, 1 mata pelajaran, 10 butir soal, 0 ujian** — keadaan
-bersih yang siap dipakai menyusun ujian pertama.
+Seeder dummy menghasilkan **7 akun, 1 mata pelajaran, 5 butir soal, 1 ujian demo**, dan
+**4 foto peserta** yang langsung tampil di kartu ujian. Paket ujian demo memakai token
+`INF2026`; token inilah yang tercetak sebagai **password ujian** pada kartu.
 
 ### Akun administrator
 
@@ -269,17 +272,20 @@ kuat **sebelum** seeding, lalu set `DEMO_MASUK=false`.
 | Peran | Nama | Email | NIS | Sandi |
 |---|---|---|---|---|
 | Administrator | Administrator Sekolah | `admin@shanatech.sch.id` | `ADM-001` | `ShanaTech#2026` |
-| Guru | Guru Informatika | `guru@shanatech.sch.id` | `GR-001` | `ShanaTech#2026` |
+| Guru | Rudi Hartono, S.Kom. | `guru@shanatech.sch.id` | `GR-001` | `ShanaTech#2026` |
+| Guru | Siti Rahmawati, S.Pd. | `guru2@shanatech.sch.id` | `GR-002` | `ShanaTech#2026` |
 | Siswa | Ahmad Fauzan Ramadhan | `ahmad.fauzan@siswa.shanatech.sch.id` | `26001` | `ShanaTech#2026` |
 | Siswa | Nadia Putri Anggraini | `nadia.putri@siswa.shanatech.sch.id` | `26002` | `ShanaTech#2026` |
 | Siswa | Rizky Aditya Nugroho | `rizky.aditya@siswa.shanatech.sch.id` | `26003` | `ShanaTech#2026` |
 | Siswa | Salsabila Azzahra | `salsabila.azzahra@siswa.shanatech.sch.id` | `26004` | `ShanaTech#2026` |
-| Siswa | Bagas Dwi Prakoso | `bagas.dwi@siswa.shanatech.sch.id` | `26005` | `ShanaTech#2026` |
 
 - Login menerima **email atau NIS** (tidak peka huruf besar/kecil).
 - Sandi mengikuti `SEED_*_PASSWORD` pada `.env`; tabel di atas memakai nilai bawaan contoh.
-- Mata pelajaran: **Informatika** (kode `INF`), diampu oleh akun Guru Informatika.
-- Kelima siswa berada pada kelas demo pertama jenjang aktif (mis. `IX-A` untuk SMP).
+- Mata pelajaran: **Informatika** (kode `INF`), diampu oleh akun guru pertama.
+- Keempat siswa berada pada kelas demo pertama jenjang aktif (mis. `XII TJKT` untuk SMK) dan
+  masing-masing sudah memiliki foto peserta untuk kartu ujian.
+- Paket ujian demo **Penilaian Harian Informatika** berisi kelima soal dan memakai token
+  `INF2026` (tampil sebagai password ujian pada kartu).
 - **Kredensial demo tidak ditampilkan di antarmuka aplikasi**; hanya tercantum di README dan `.env`.
 
 ---
@@ -421,8 +427,9 @@ cetak tidak bergeser.
 3. Klik **Cetak kartu** untuk membuka dokumen A4 dua kolom, lalu **Cetak / Simpan PDF**.
 
 Kartu hanya memuat peserta aktif pada kelas sasaran ujian (`ujian.kelas_target`); kelas kosong
-berarti semua kelas. Token ujian sengaja **tidak** dicetak. Endpoint `GET /api/kartu` khusus
-administrator (guru mendapat 403).
+berarti semua kelas. Setiap kartu mencetak **Username / NIS** dan **Password ujian** (token
+ujian) agar peserta dapat masuk dan memulai sesi. Endpoint `GET /api/kartu` khusus administrator
+(guru mendapat 403).
 
 ### Cetak laporan hasil (PDF)
 

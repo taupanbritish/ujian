@@ -39,10 +39,18 @@ export default function KartuUjian({ ujian, peserta }) {
           <p className="text-[0.46rem] font-bold tracking-[0.16em] text-neutral-500 uppercase">Nama peserta</p>
           <p className="truncate text-[0.78rem] leading-tight font-extrabold">{peserta.nama}</p>
           <div className="mt-1 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[0.6rem]">
-            <span className="text-neutral-500">NIS</span>
-            <span className="truncate font-mono font-semibold">{peserta.nis || '—'}</span>
             <span className="text-neutral-500">Kelas</span>
             <span className="truncate font-semibold">{peserta.kelas || '—'}</span>
+          </div>
+          <div className="mt-1 rounded border border-neutral-400 bg-neutral-100 px-1.5 py-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[0.42rem] font-bold tracking-[0.12em] text-neutral-500 uppercase">Username / NIS</span>
+              <span className="truncate font-mono text-[0.58rem] font-extrabold">{peserta.nis || '—'}</span>
+            </div>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[0.42rem] font-bold tracking-[0.12em] text-neutral-500 uppercase">Password ujian</span>
+              <span className="truncate font-mono text-[0.58rem] font-extrabold tracking-[0.14em]">{ujian.token || '—'}</span>
+            </div>
           </div>
           <div className="mt-1.5 border-t border-dashed border-neutral-300 pt-1">
             <p className="truncate text-[0.64rem] font-bold" title={ujian.judul}>{ujian.judul}</p>

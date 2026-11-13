@@ -14,7 +14,7 @@ r.get('/', bungkus(async (req, res) => {
   if (!id) throw new Galat(400, 'Pilih ujian yang kartunya akan dicetak.')
 
   const ujian = await satu(
-    `SELECT u.id, u.judul, u.deskripsi, u.durasi_menit, u.mulai_pada, u.selesai_pada,
+    `SELECT u.id, u.judul, u.deskripsi, u.durasi_menit, u.token, u.mulai_pada, u.selesai_pada,
             u.status, u.kkm, u.kelas_target,
             m.nama AS mapel_nama, m.kode AS mapel_kode, m.warna AS mapel_warna
      FROM ujian u JOIN mapel m ON m.id = u.mapel_id
