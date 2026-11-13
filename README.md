@@ -50,9 +50,9 @@ didistribusikan ke sekolah lain cukup dengan mengubah identitas pada berkas `.en
 - **Hasil & Nilai**: penilaian otomatis (PG/benar-salah/isian) dan manual (uraian), ekspor CSV.
 - **Laporan nilai**: rekap per mata pelajaran dan kelas, ringkasan per ujian, daftar nilai peserta,
   unduhan CSV, serta **cetak PDF berkop surat** (logo, nama, dan alamat sekolah).
-- **Kartu Ujian**: cetak kartu peserta per ujian/kelas dalam tata letak A4. Kartu memuat logo dan
-  nama sekolah, alamat, identitas peserta, **foto peserta**, **username/NIS**, **password ujian
-  (token)**, jadwal, dan durasi ujian.
+- **Kartu Ujian**: cetak kartu peserta **per kelas** dalam tata letak A4. Kartu memuat logo,
+  nama, dan alamat sekolah, **foto peserta**, nama, kelas, serta **username/NIS** dan
+  **password akun** peserta.
 - **Mata Pelajaran** per jenjang + katalog rekomendasi bawaan; penentuan guru pengampu.
 - **Peserta & Akun**: CRUD akun, **impor Excel** peserta dengan pembangkitan sandi acak, serta
   unggah **foto peserta** (rasio 3:4) untuk kartu ujian.
@@ -216,6 +216,7 @@ Salin dari `.env.example`. Nilai penting:
 | `JWT_EXPIRES` | `12h` | Masa berlaku token |
 | `MEDIA_DIR` | `server/uploads` | Folder berkas gambar/audio/video soal; arahkan ke volume persisten di produksi |
 | `MEDIA_SECRET` | `JWT_SECRET` | Rahasia HMAC URL media; ganti bila URL media ingin terpisah dari token sesi |
+| `SANDI_KARTU_SECRET` | `JWT_SECRET` | Kunci enkripsi AES-256-GCM password pada kartu ujian; ganti agar terpisah dari token sesi |
 | `PG_BIN_DIR` / `PG_DUMP` / `PG_RESTORE` | otomatis | Jalur perkakas cadangan bila tidak terdeteksi di `PATH` |
 | `BACKUP_DIR` | `server/backups` | Folder cadangan pengaman otomatis sebelum pemulihan |
 | `SEED_ADMIN_EMAIL` | `admin@shanatech.sch.id` | Email admin yang dibuat seeder |
@@ -240,8 +241,8 @@ dari menu **Pengaturan Sekolah** (admin) tanpa seed ulang. Jenjang dikunci saat 
 ## Akun demo & data dummy
 
 Seeder dummy menghasilkan **7 akun, 1 mata pelajaran, 5 butir soal, 1 ujian demo**, dan
-**4 foto peserta** yang langsung tampil di kartu ujian. Paket ujian demo memakai token
-`INF2026`; token inilah yang tercetak sebagai **password ujian** pada kartu.
+**4 foto peserta** yang langsung tampil di kartu ujian. Kartu mencetak password akun peserta
+(`SEED_SISWA_PASSWORD`); token ujian `INF2026` tetap dipakai peserta untuk masuk ke sesi ujian.
 
 ### Akun administrator
 
@@ -285,7 +286,7 @@ kuat **sebelum** seeding, lalu set `DEMO_MASUK=false`.
 - Keempat siswa berada pada kelas demo pertama jenjang aktif (mis. `XII TJKT` untuk SMK) dan
   masing-masing sudah memiliki foto peserta untuk kartu ujian.
 - Paket ujian demo **Penilaian Harian Informatika** berisi kelima soal dan memakai token
-  `INF2026` (tampil sebagai password ujian pada kartu).
+  `INF2026` untuk mulai mengerjakan. Kartu ujian mencetak **password akun** siswa, bukan token.
 - **Kredensial demo tidak ditampilkan di antarmuka aplikasi**; hanya tercantum di README dan `.env`.
 
 ---
@@ -422,14 +423,20 @@ cetak tidak bergeser.
 ### Cetak kartu ujian (khusus administrator)
 
 1. Buka menu **Kartu Ujian**.
-2. Pilih ujian, lalu persempit kelas bila perlu. Pratinjau menampilkan ringkasan jumlah peserta,
-   jumlah yang sudah berfoto, dan contoh kartu.
+2. Pilih **kelas**. Tidak perlu memilih ujian—kartu berlaku untuk seluruh kegiatan ujian kelas
+   tersebut. Pratinjau menampilkan ringkasan jumlah peserta, jumlah yang sudah berfoto, dan
+   contoh kartu.
 3. Klik **Cetak kartu** untuk membuka dokumen A4 dua kolom, lalu **Cetak / Simpan PDF**.
 
-Kartu hanya memuat peserta aktif pada kelas sasaran ujian (`ujian.kelas_target`); kelas kosong
-berarti semua kelas. Setiap kartu mencetak **Username / NIS** dan **Password ujian** (token
-ujian) agar peserta dapat masuk dan memulai sesi. Endpoint `GET /api/kartu` khusus administrator
-(guru mendapat 403).
+Kartu memuat seluruh peserta aktif pada kelas yang dipilih. Setiap kartu mencetak **Username
+(NIS)** dan **Password akun** agar peserta dapat masuk ke aplikasi dan memulai sesi ujian.
+Password disimpan terenkripsi (AES-256-GCM) pada kolom `pengguna.sandi_kartu` dan hanya
+dikembalikan oleh endpoint kartu khusus administrator; login tetap memakai hash bcrypt.
+Karena kartu memuat password terbaca, cetak dan bagikan hanya kepada pemilik kartu.
+
+Endpoint `GET /api/kartu?kelas=<nama>` khusus administrator (guru mendapat 403). Akun lama yang
+belum memiliki `sandi_kartu` akan tampil tanpa password sampai kata sandinya diatur ulang lewat
+**Peserta & Akun → Atur ulang sandi**.
 
 ### Cetak laporan hasil (PDF)
 

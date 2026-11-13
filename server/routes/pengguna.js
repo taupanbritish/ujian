@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { q, satu } from '../db/pool.js'
 import { bungkus, Galat, angka, bersih } from '../lib/http.js'
 import { hashSandi } from '../lib/sandi.js'
+import { enkripsiSandi } from '../lib/sandi-kartu.js'
 import { catatAktivitas } from '../lib/ujian.js'
 import { urlMedia } from '../lib/media.js'
 
@@ -92,9 +93,11 @@ r.post('/', bungkus(async (req, res) => {
   if (kembar) throw new Galat(409, 'Email atau NIS sudah terdaftar.')
   const fotoId = v.peran === 'siswa' ? await cekFoto(v.foto_media_id) : null
   const baru = await satu(
-    `INSERT INTO pengguna (nama,email,nis,kata_sandi_hash,peran,kelas,gender,aktif,foto_media_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+    `INSERT INTO pengguna (nama,email,nis,kata_sandi_hash,peran,kelas,gender,aktif,foto_media_id,sandi_kartu)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
     [bersih(v.nama), bersih(v.email).toLowerCase(), v.nis || null, await hashSandi(v.kata_sandi), v.peran,
-      v.peran === 'siswa' ? v.kelas || null : null, v.gender || null, v.aktif, fotoId],
+      v.peran === 'siswa' ? v.kelas || null : null, v.gender || null, v.aktif, fotoId,
+      v.peran === 'siswa' ? enkripsiSandi(v.kata_sandi) : null],
   )
   await catatAktivitas(req.pengguna.id, 'pengguna_baru', `${req.pengguna.nama} menambahkan ${v.peran} “${bersih(v.nama)}”`, '#38BDF8')
   res.status(201).json({ id: baru.id, pesan: 'Akun berhasil dibuat.' })
@@ -117,7 +120,12 @@ r.patch('/:id', bungkus(async (req, res) => {
     'UPDATE pengguna SET nama=$1,email=$2,nis=$3,peran=$4,kelas=$5,gender=$6,aktif=$7,foto_media_id=$8 WHERE id=$9',
     [bersih(v.nama), bersih(v.email).toLowerCase(), v.nis || null, v.peran, v.peran === 'siswa' ? v.kelas || null : null, v.gender || null, v.aktif, fotoId, id],
   )
-  if (v.kata_sandi) await q('UPDATE pengguna SET kata_sandi_hash=$1 WHERE id=$2', [await hashSandi(v.kata_sandi), id])
+  if (v.kata_sandi) {
+    await q(
+      'UPDATE pengguna SET kata_sandi_hash=$1, sandi_kartu=$2 WHERE id=$3',
+      [await hashSandi(v.kata_sandi), v.peran === 'siswa' ? enkripsiSandi(v.kata_sandi) : null, id],
+    )
+  }
   res.json({ pesan: 'Data akun tersimpan.' })
 }))
 
@@ -148,7 +156,10 @@ r.post('/:id/reset-sandi', bungkus(async (req, res) => {
   const target = await satu('SELECT peran, nama FROM pengguna WHERE id=$1 AND dihapus_pada IS NULL', [id])
   if (!target) throw new Galat(404, 'Akun tidak ditemukan.')
   batasi(req, target.peran)
-  await q('UPDATE pengguna SET kata_sandi_hash=$1 WHERE id=$2', [await hashSandi(kata_sandi), id])
+  await q(
+    'UPDATE pengguna SET kata_sandi_hash=$1, sandi_kartu=$2 WHERE id=$3',
+    [await hashSandi(kata_sandi), target.peran === 'siswa' ? enkripsiSandi(kata_sandi) : null, id],
+  )
   await catatAktivitas(req.pengguna.id, 'keamanan', `Kata sandi “${target.nama}” diatur ulang oleh ${req.pengguna.nama}`, '#FF4D6D')
   res.json({ pesan: 'Kata sandi berhasil diatur ulang.' })
 }))
@@ -212,9 +223,10 @@ r.post('/import', bungkus(async (req, res) => {
     const kelas = peran === 'siswa' ? v.kelas : null
     try {
       const baru = await satu(
-        `INSERT INTO pengguna (nama,email,nis,kata_sandi_hash,peran,kelas,gender,aktif)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE) RETURNING id`,
-        [bersih(v.nama), email, nis, await hashSandi(sandi), peran, kelas, v.gender || null],
+        `INSERT INTO pengguna (nama,email,nis,kata_sandi_hash,peran,kelas,gender,aktif,sandi_kartu)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE,$8) RETURNING id`,
+        [bersih(v.nama), email, nis, await hashSandi(sandi), peran, kelas, v.gender || null,
+          peran === 'siswa' ? enkripsiSandi(sandi) : null],
       )
       lihatEmail.add(email); if (nis) lihatNis.add(nis.toLowerCase())
       dibuat.push({ id: baru.id, nama: bersih(v.nama), email, nis, peran, kelas })
@@ -239,8 +251,11 @@ r.post('/import', bungkus(async (req, res) => {
   })
 }))
 
-r.get('/kelas/daftar', bungkus(async (_req, res) => {
-  const rows = await q(`SELECT kelas, count(*)::int AS jumlah FROM pengguna WHERE peran='siswa' AND kelas IS NOT NULL AND dihapus_pada IS NULL GROUP BY kelas ORDER BY kelas`)
+r.get('/kelas/daftar', bungkus(async (req, res) => {
+  // ?aktif=1 dipakai halaman kartu ujian agar jumlah pada pilihan kelas sama
+  // dengan peserta aktif yang benar-benar dicetak.
+  const hanyaAktif = req.query.aktif === '1' ? ' AND aktif' : ''
+  const rows = await q(`SELECT kelas, count(*)::int AS jumlah FROM pengguna WHERE peran='siswa' AND kelas IS NOT NULL AND dihapus_pada IS NULL${hanyaAktif} GROUP BY kelas ORDER BY kelas`)
   res.json({ data: rows.rows })
 }))
 

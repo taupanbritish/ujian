@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  IdCard, Printer, Users, Camera, ImageOff, CalendarDays, Clock, School,
+  IdCard, Printer, Users, Camera, ImageOff, KeyRound, AlertTriangle,
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useToast } from '../../context/ToastContext'
@@ -10,7 +10,6 @@ import {
   Tombol, Pil, Kosong, Galat, Rangka, JudulBagian,
 } from '../../components/ui'
 import KartuUjian from '../../components/KartuUjian'
-import { STATUS_UJIAN, tanggal } from '../../lib/format'
 
 const PRATINJAU_MAKS = 6
 
@@ -31,50 +30,48 @@ export default function Kartu() {
   const navigate = useNavigate()
   const toast = useToast()
 
-  const ujianId = params.get('ujian_id') || ''
-  const kelas = params.get('kelas') || 'semua'
+  const kelas = params.get('kelas') || ''
 
-  const ubah = (kunci, nilai) => {
+  const ubah = (nilai) => {
     const p = new URLSearchParams(params)
-    if (!nilai || nilai === 'semua') p.delete(kunci)
-    else p.set(kunci, nilai)
+    if (!nilai) p.delete('kelas')
+    else p.set('kelas', nilai)
     setParams(p, { replace: true })
   }
 
-  const { data: daftarUjian, isPending: memuatUjian } = useQuery({
-    queryKey: ['ujian'],
-    queryFn: () => api('/ujian'),
+  // Daftar kelas yang benar-benar memiliki peserta aktif, lengkap dengan jumlahnya.
+  const { data: daftarKelas, isPending: memuatKelas } = useQuery({
+    queryKey: ['kelas-peserta'],
+    queryFn: () => api('/pengguna/kelas/daftar?aktif=1'),
     staleTime: 60000,
   })
-  const { data: meta } = useQuery({ queryKey: ['meta'], queryFn: () => api('/auth/meta'), staleTime: 120000 })
-
-  const ujian = useMemo(
-    () => (daftarUjian?.data || []).find((u) => String(u.id) === String(ujianId)),
-    [daftarUjian, ujianId],
-  )
 
   const queryString = useMemo(() => {
     const p = new URLSearchParams()
-    if (ujianId) p.set('ujian_id', ujianId)
-    if (kelas !== 'semua') p.set('kelas', kelas)
+    if (kelas) p.set('kelas', kelas)
     return p.toString()
-  }, [ujianId, kelas])
+  }, [kelas])
 
   const { data, isPending, error, refetch, isFetching } = useQuery({
     queryKey: ['kartu', queryString],
     queryFn: () => api(`/kartu?${queryString}`),
-    enabled: !!ujianId,
+    enabled: !!kelas,
     placeholderData: (d) => d,
   })
 
   const peserta = data?.peserta || []
   const berfoto = peserta.filter((p) => p.foto_url).length
   const tanpaFoto = peserta.length - berfoto
+  const tanpaSandi = peserta.filter((p) => !p.sandi).length
   const pratinjau = peserta.slice(0, PRATINJAU_MAKS)
 
   const cetak = () => {
+    if (!kelas) {
+      toast.ingat('Pilih kelas lebih dulu', { pesan: 'Kartu dibuat per kelas peserta, bukan per ujian.' })
+      return
+    }
     if (!peserta.length) {
-      toast.ingat('Belum ada peserta untuk dicetak', { pesan: 'Pilih ujian yang memiliki peserta pada kelas sasaran.' })
+      toast.ingat('Belum ada peserta untuk dicetak', { pesan: 'Kelas ini belum memiliki akun peserta aktif.' })
       return
     }
     navigate(`/admin/kartu/cetak?${queryString}`)
@@ -85,60 +82,60 @@ export default function Kartu() {
       <JudulBagian
         eyebrow="Administrasi ujian"
         judul="Cetak kartu ujian"
-        pesan="Kartu memuat identitas sekolah, logo, dan foto peserta. Unduh foto lewat Peserta & Akun agar kartu tampil lengkap."
+        pesan="Pilih satu kelas, lalu cetak kartu berisi identitas sekolah, foto, nama, kelas, username, dan password akun peserta."
         kanan={
-          <Tombol varian="utama" ikon={Printer} onClick={cetak} disabled={!peserta.length}>
+          <Tombol varian="utama" ikon={Printer} onClick={cetak} disabled={!kelas || !peserta.length}>
             Cetak kartu
           </Tombol>
         }
       />
 
       <section className="kartu p-4">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[repeat(2,minmax(0,1fr))_auto]">
-          <label>
-            <span className="label-field">Ujian</span>
-            <select
-              value={ujianId}
-              onChange={(e) => ubah('ujian_id', e.target.value)}
-              className="kolom-field py-2.5 text-[0.84rem]"
-              aria-label="Pilih ujian"
-            >
-              <option value="">{memuatUjian ? 'Memuat ujian…' : 'Pilih ujian…'}</option>
-              {(daftarUjian?.data || []).map((u) => (
-                <option key={u.id} value={u.id}>{u.judul} · {u.mapel_nama}</option>
-              ))}
-            </select>
-          </label>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
           <label>
             <span className="label-field">Kelas</span>
             <select
               value={kelas}
-              onChange={(e) => ubah('kelas', e.target.value)}
+              onChange={(e) => ubah(e.target.value)}
               className="kolom-field py-2.5 text-[0.84rem]"
-              aria-label="Saring kelas"
+              aria-label="Pilih kelas"
             >
-              <option value="semua">Semua kelas sasaran</option>
-              {(meta?.kelas || []).map((k) => <option key={k} value={k}>{k}</option>)}
+              <option value="">{memuatKelas ? 'Memuat kelas…' : 'Pilih kelas…'}</option>
+              {(daftarKelas?.data || []).map((k) => (
+                <option key={k.kelas} value={k.kelas}>{k.kelas} · {k.jumlah} peserta</option>
+              ))}
             </select>
           </label>
-          <div className="flex items-end">
-            {ujian ? (
-              <span className="pb-2 text-[0.72rem] text-mute">
-                {ujian.kelas_target?.length ? `Sasaran: ${ujian.kelas_target.join(', ')}` : 'Sasaran: semua kelas'}
-              </span>
-            ) : (
-              <span className="pb-2 text-[0.72rem] text-mute">Pilih ujian untuk melihat kartu pesertanya.</span>
+          <div className="flex flex-col justify-end gap-1 pb-1">
+            <p className="text-[0.72rem] text-mute">
+              {kelas
+                ? `Kartu untuk seluruh peserta aktif di kelas ${kelas}. Tidak terikat pada mata pelajaran atau ujian tertentu.`
+                : 'Kartu tidak lagi bergantung pada pilihan ujian—cukup pilih kelas.'}
+            </p>
+            {tanpaSandi > 0 && (
+              <p className="flex items-start gap-1.5 text-[0.7rem] text-amber">
+                <AlertTriangle size={12} className="mt-0.5 flex-none" />
+                {tanpaSandi} peserta belum memiliki password tersimpan (akun lama). Atur ulang kata sandi di menu Peserta & Akun agar kartu lengkap.
+              </p>
             )}
           </div>
         </div>
       </section>
 
-      {!ujianId ? (
+      <div className="flex items-start gap-2 rounded-xl border border-amber/35 bg-amber/8 px-3.5 py-2.5 text-[0.72rem] text-body">
+        <KeyRound size={14} className="mt-0.5 flex-none text-amber" />
+        <p>
+          Kartu memuat password akun dalam bentuk terbaca. Cetak dan bagikan hanya kepada peserta yang bersangkutan,
+          lalu minta mereka mengganti kata sandi setelah masuk pertama kali.
+        </p>
+      </div>
+
+      {!kelas ? (
         <div className="kartu p-4">
           <Kosong
             ikon={IdCard}
-            judul="Belum ada ujian yang dipilih"
-            pesan="Tentukan ujian lebih dulu. Kartu akan dibuat untuk seluruh peserta aktif pada kelas sasaran ujian."
+            judul="Pilih kelas untuk melihat kartu"
+            pesan="Setelah kelas dipilih, seluruh peserta aktif pada kelas tersebut langsung ditampilkan beserta username dan password-nya."
             className="py-10"
           />
         </div>
@@ -148,37 +145,37 @@ export default function Kartu() {
         <div className="kartu p-4"><Galat pesan={error.message} onUlang={refetch} /></div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
             <KartuRingkas label="Peserta" nilai={peserta.length} ikon={Users} warna="#7C5CFF" />
             <KartuRingkas label="Sudah berfoto" nilai={berfoto} ikon={Camera} warna="#A3E635" />
-            <KartuRingkas label="Tanpa foto" nilai={tanpaFoto} ikon={ImageOff} warna="#FFB020" petunjuk={tanpaFoto ? 'Kartu memakai kotak inisial' : 'Semua kartu lengkap'} />
-            <KartuRingkas label="Kelas tercakup" nilai={new Set(peserta.map((p) => p.kelas).filter(Boolean)).size} ikon={School} warna="#22D3EE" />
+            <KartuRingkas
+              label="Tanpa foto"
+              nilai={tanpaFoto}
+              ikon={ImageOff}
+              warna="#FFB020"
+              petunjuk={tanpaFoto ? 'Kartu memakai kotak inisial' : 'Semua kartu lengkap'}
+            />
           </div>
 
           <section className="kartu p-4">
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line-soft pb-3">
               <div className="min-w-0">
-                <h3 className="truncate text-[1rem]">{ujian?.judul}</h3>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-[0.72rem] text-mute">
-                  <span className="flex items-center gap-1.5">
-                    <span className="size-2 rounded-full" style={{ background: ujian?.mapel_warna }} />
-                    {ujian?.mapel_nama} · {ujian?.mapel_kode}
-                  </span>
-                  <span className="flex items-center gap-1"><CalendarDays size={12} /> {tanggal(ujian?.mulai_pada, { jam: true })}</span>
-                  <span className="flex items-center gap-1"><Clock size={12} /> {ujian?.durasi_menit} menit</span>
-                </div>
+                <h3 className="truncate text-[1rem]">Kartu ujian kelas {kelas}</h3>
+                <p className="mt-1 text-[0.72rem] text-mute">
+                  Nama peserta, kelas, username (NIS), dan password akun dicetak di setiap kartu.
+                </p>
               </div>
               <span className="flex items-center gap-2">
                 {isFetching && <Pil warna="#22D3EE">memperbarui…</Pil>}
-                <Pil warna={STATUS_UJIAN[ujian?.status_efektif]?.warna}>{STATUS_UJIAN[ujian?.status_efektif]?.label || '—'}</Pil>
+                <Pil warna="#7C5CFF">{peserta.length} kartu</Pil>
               </span>
             </div>
 
             {!peserta.length ? (
               <Kosong
                 ikon={Users}
-                judul="Belum ada peserta pada saringan ini"
-                pesan="Pastikan kelas sasaran ujian sudah memiliki akun peserta aktif, atau pilih kelas lain."
+                judul="Belum ada peserta aktif di kelas ini"
+                pesan="Tambahkan akun peserta pada menu Peserta & Akun, atau pilih kelas lain."
                 className="py-10"
               />
             ) : (
@@ -186,7 +183,7 @@ export default function Kartu() {
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {pratinjau.map((p) => (
                     <div key={p.id} className="rounded-xl bg-white p-1 shadow-lift">
-                      <KartuUjian ujian={{ ...data.ujian, ...ujian }} peserta={p} />
+                      <KartuUjian peserta={p} />
                     </div>
                   ))}
                 </div>

@@ -1,21 +1,22 @@
 import { useSekolah } from '../context/SekolahContext'
 import { Logo } from '../components/Logo'
-import { tanggal, inisial } from '../lib/format'
+import { inisial } from '../lib/format'
 
 /**
- * Kartu peserta ujian. Warna sengaja hitam-putih agar aman dicetak di printer
- * sekolah, dan ukurannya tetap sama saat foto belum diunggah.
+ * Kartu peserta per kelas. Warna sengaja hitam-putih agar aman dicetak di
+ * printer sekolah, dan ukuran foto tetap sama saat foto belum diunggah.
+ * Isi kartu: alamat di bawah nama sekolah, foto, nama, kelas, username, password.
  */
-export default function KartuUjian({ ujian, peserta }) {
+export default function KartuUjian({ peserta }) {
   const sekolah = useSekolah()
   return (
     <article className="pecah-hindari relative overflow-hidden rounded-lg border-2 border-neutral-800 bg-white text-neutral-900">
       <div className="flex items-center gap-2 border-b-2 border-neutral-800 px-3 py-2">
-        <Logo ukuran={28} />
+        <Logo ukuran={26} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[0.7rem] leading-tight font-extrabold tracking-wide uppercase">{sekolah.nama_sekolah}</p>
+          <p className="text-[0.7rem] leading-tight font-extrabold tracking-wide uppercase">{sekolah.nama_sekolah}</p>
           {sekolah.alamat_sekolah && (
-            <p className="truncate text-[0.52rem] leading-tight text-neutral-600">{sekolah.alamat_sekolah}</p>
+            <p className="mt-0.5 text-[0.5rem] leading-tight text-neutral-600">{sekolah.alamat_sekolah}</p>
           )}
         </div>
         <span className="flex-none rounded border border-neutral-800 px-1.5 py-0.5 text-[0.46rem] leading-none font-bold tracking-[0.14em] uppercase">
@@ -37,25 +38,20 @@ export default function KartuUjian({ ujian, peserta }) {
 
         <div className="min-w-0 flex-1">
           <p className="text-[0.46rem] font-bold tracking-[0.16em] text-neutral-500 uppercase">Nama peserta</p>
-          <p className="truncate text-[0.78rem] leading-tight font-extrabold">{peserta.nama}</p>
-          <div className="mt-1 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[0.6rem]">
+          <p className="truncate text-[0.82rem] leading-tight font-extrabold">{peserta.nama}</p>
+          <div className="mt-1 flex items-baseline justify-between gap-2 text-[0.62rem]">
             <span className="text-neutral-500">Kelas</span>
             <span className="truncate font-semibold">{peserta.kelas || '—'}</span>
           </div>
-          <div className="mt-1 rounded border border-neutral-400 bg-neutral-100 px-1.5 py-1">
+          <div className="mt-1.5 rounded border border-neutral-400 bg-neutral-100 px-1.5 py-1">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[0.42rem] font-bold tracking-[0.12em] text-neutral-500 uppercase">Username / NIS</span>
-              <span className="truncate font-mono text-[0.58rem] font-extrabold">{peserta.nis || '—'}</span>
+              <span className="truncate text-[0.42rem] font-bold tracking-[0.12em] text-neutral-500 uppercase">Username</span>
+              <span className="min-w-0 text-right font-mono text-[0.58rem] font-extrabold break-all">{peserta.nis || '—'}</span>
             </div>
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[0.42rem] font-bold tracking-[0.12em] text-neutral-500 uppercase">Password ujian</span>
-              <span className="truncate font-mono text-[0.58rem] font-extrabold tracking-[0.14em]">{ujian.token || '—'}</span>
+            <div className="mt-0.5 flex items-baseline justify-between gap-2">
+              <span className="truncate text-[0.42rem] font-bold tracking-[0.12em] text-neutral-500 uppercase">Password</span>
+              <span className="min-w-0 text-right font-mono text-[0.58rem] font-extrabold break-all">{peserta.sandi || '—'}</span>
             </div>
-          </div>
-          <div className="mt-1.5 border-t border-dashed border-neutral-300 pt-1">
-            <p className="truncate text-[0.64rem] font-bold" title={ujian.judul}>{ujian.judul}</p>
-            <p className="truncate text-[0.56rem] text-neutral-600">{ujian.mapel_nama} · {ujian.mapel_kode}</p>
-            <p className="text-[0.56rem] text-neutral-600">{tanggal(ujian.mulai_pada, { jam: true })} · {ujian.durasi_menit} menit</p>
           </div>
         </div>
       </div>

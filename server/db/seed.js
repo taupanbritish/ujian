@@ -6,6 +6,7 @@ import { siswaNama, bankUntuk, bentukSoal } from './data-seed.js'
 import { jenjangValid, kelasDemo } from '../lib/jenjang.js'
 import { simpanJenjang } from '../lib/pengaturan.js'
 import { hashSandi } from '../lib/sandi.js'
+import { enkripsiSandi } from '../lib/sandi-kartu.js'
 import { DIR_MEDIA } from '../lib/media.js'
 
 // Seeder dummy: 1 administrator, 2 guru, 4 peserta didik (dengan foto kartu),
@@ -50,7 +51,9 @@ async function utama() {
 
   const sandiAdmin = await hashSandi(process.env.SEED_ADMIN_PASSWORD || 'ShanaTech#2026')
   const sandiGuru = await hashSandi(process.env.SEED_GURU_PASSWORD || 'ShanaTech#2026')
-  const sandiSiswa = await hashSandi(process.env.SEED_SISWA_PASSWORD || 'ShanaTech#2026')
+  const sandiSiswaAsli = process.env.SEED_SISWA_PASSWORD || 'ShanaTech#2026'
+  const sandiSiswa = await hashSandi(sandiSiswaAsli)
+  const sandiSiswaKartu = enkripsiSandi(sandiSiswaAsli)
   const kelas = kelasDemo(jenjang)[0] || 'XII TJKT'
   const foto = await siapkanFoto()
 
@@ -82,9 +85,9 @@ async function utama() {
       const slug = nama.toLowerCase().replace(/[^a-z ]/g, '').split(' ').slice(0, 2).join('.')
       const nis = `26${String(i + 1).padStart(3, '0')}`
       const siswa = await c.query(
-        `INSERT INTO pengguna (nama,email,nis,kata_sandi_hash,peran,kelas,gender,terakhir_masuk)
-         VALUES ($1,$2,$3,$4,'siswa',$5,$6,now()-interval '1 day') RETURNING id`,
-        [nama, `${slug}@siswa.shanatech.sch.id`, nis, sandiSiswa, kelas, gender],
+        `INSERT INTO pengguna (nama,email,nis,kata_sandi_hash,peran,kelas,gender,terakhir_masuk,sandi_kartu)
+         VALUES ($1,$2,$3,$4,'siswa',$5,$6,now()-interval '1 day',$7) RETURNING id`,
+        [nama, `${slug}@siswa.shanatech.sch.id`, nis, sandiSiswa, kelas, gender, sandiSiswaKartu],
       )
       const f = foto[i]
       const media = await c.query(
@@ -117,8 +120,8 @@ async function utama() {
       soalId.push({ id: soal.rows[0].id, bobot: item.bobot })
     }
 
-    // Paket ujian demo yang langsung dapat dicetak kartunya. Token inilah yang
-    // tampil sebagai "password ujian" pada kartu peserta.
+    // Paket ujian demo untuk mencoba alur ujian. Kartu peserta kini dicetak per
+    // kelas dan memakai password akun (sandi_kartu), bukan token ini.
     const ujian = await c.query(
       `INSERT INTO ujian (judul,mapel_id,deskripsi,durasi_menit,token,mulai_pada,selesai_pada,status,
                           acak_soal,acak_opsi,tampil_pembahasan,kkm,batas_percobaan,kelas_target,dibuat_oleh)

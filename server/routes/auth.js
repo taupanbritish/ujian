@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { q, satu } from '../db/pool.js'
 import { bungkus, Galat, bersih } from '../lib/http.js'
 import { hashSandi, cocokSandi } from '../lib/sandi.js'
+import { enkripsiSandi } from '../lib/sandi-kartu.js'
 import { buatToken, wajibMasuk, kolomPublik } from '../middleware/auth.js'
 import { catatAktivitas } from '../lib/ujian.js'
 import { getPengaturan, kelasEfektif } from '../lib/pengaturan.js'
@@ -70,7 +71,11 @@ r.patch('/profil', wajibMasuk, bungkus(async (req, res) => {
   if (data.kata_sandi_baru) {
     const p = await satu('SELECT kata_sandi_hash FROM pengguna WHERE id=$1', [req.pengguna.id])
     if (!(await cocokSandi(data.kata_sandi_lama || '', p.kata_sandi_hash))) throw new Galat(400, 'Kata sandi lama tidak sesuai.')
-    await q('UPDATE pengguna SET kata_sandi_hash=$1 WHERE id=$2', [await hashSandi(data.kata_sandi_baru), req.pengguna.id])
+    const baru = data.kata_sandi_baru
+    await q(
+      'UPDATE pengguna SET kata_sandi_hash=$1, sandi_kartu=$2 WHERE id=$3',
+      [await hashSandi(baru), req.pengguna.peran === 'siswa' ? enkripsiSandi(baru) : null, req.pengguna.id],
+    )
     await catatAktivitas(req.pengguna.id, 'keamanan', `${req.pengguna.nama} memperbarui kata sandi akun`, '#38BDF8')
   }
   res.json({ pengguna: await satu(`SELECT ${kolomPublik} FROM pengguna WHERE id=$1`, [req.pengguna.id]) })

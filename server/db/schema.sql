@@ -197,3 +197,8 @@ CREATE INDEX IF NOT EXISTS idx_media_jenis ON media(jenis);
 -- Foto peserta untuk kartu ujian. Foto disimpan sebagai media biasa sehingga
 -- sajiannya tetap memakai URL bertanda tangan (bukan folder publik).
 ALTER TABLE pengguna ADD COLUMN IF NOT EXISTS foto_media_id INTEGER REFERENCES media(id) ON DELETE SET NULL;
+
+-- Kata sandi akun dalam bentuk terenkripsi (AES-256-GCM) khusus untuk dicetak
+-- pada kartu peserta. Login tetap memakai kata_sandi_hash; kolom ini hanya
+-- dibaca endpoint kartu yang khusus administrator.
+ALTER TABLE pengguna ADD COLUMN IF NOT EXISTS sandi_kartu TEXT;
