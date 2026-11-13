@@ -1,4 +1,4 @@
-const KUNCI = 'cendekia.token'
+const KUNCI = 'shanatech.token'
 
 export const ambilToken = () => localStorage.getItem(KUNCI)
 export const simpanToken = (t) => localStorage.setItem(KUNCI, t)
@@ -38,7 +38,7 @@ export async function api(path, { method = 'GET', body, sinyal } = {}) {
   }
   if (!res.ok) {
     if (res.status === 401 && path !== '/auth/masuk') {
-      window.dispatchEvent(new CustomEvent('cendekia:sesi-berakhir'))
+      window.dispatchEvent(new CustomEvent('shanatech:sesi-berakhir'))
     }
     throw new ApiError(res.status, data?.pesan || `Permintaan gagal (${res.status}).`, data?.rincian)
   }
@@ -71,7 +71,7 @@ export async function apiUnggah(path, formData, { sinyal } = {}) {
     data = { pesan: teks.slice(0, 200) }
   }
   if (!res.ok) {
-    if (res.status === 401) window.dispatchEvent(new CustomEvent('cendekia:sesi-berakhir'))
+    if (res.status === 401) window.dispatchEvent(new CustomEvent('shanatech:sesi-berakhir'))
     throw new ApiError(res.status, data?.pesan || `Unggahan gagal (${res.status}).`, data?.rincian)
   }
   return data

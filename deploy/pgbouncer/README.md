@@ -39,16 +39,16 @@ Sesuaikan `[databases]`, `listen_addr`, dan angka pool di `pgbouncer.ini`.
 Ambil verifier sandi dari PostgreSQL:
 
 ```bash
-psql "postgresql://.../cendekia" -Atc \
-  "SELECT usename, passwd FROM pg_shadow WHERE usename='cendekia'"
+psql "postgresql://.../shanatech" -Atc \
+  "SELECT usename, passwd FROM pg_shadow WHERE usename='shanatech'"
 ```
 
-Tempel hasilnya ke `userlist.txt` (format `"cendekia" "SCRAM-SHA-256$..."`).
+Tempel hasilnya ke `userlist.txt` (format `"shanatech" "SCRAM-SHA-256$..."`).
 
 ## Mengarahkan aplikasi
 
 ```dotenv
-DATABASE_URL=postgresql://cendekia:SANDI@127.0.0.1:6432/cendekia
+DATABASE_URL=postgresql://shanatech:SANDI@127.0.0.1:6432/shanatech
 DATABASE_PGBOUNCER=true
 DATABASE_POOL_MAX=10
 DATABASE_APP_INSTANCES=4

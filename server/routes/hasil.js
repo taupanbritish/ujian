@@ -83,7 +83,7 @@ r.get('/ekspor/csv', bungkus(async (req, res) => {
   ].map(kutip).join(';'))
   const csv = '\uFEFF' + [kepala.map(kutip).join(';'), ...baris].join('\r\n')
   res.setHeader('Content-Type', 'text/csv; charset=utf-8')
-  res.setHeader('Content-Disposition', `attachment; filename="rekap-nilai-cendekia-${new Date().toISOString().slice(0, 10)}.csv"`)
+  res.setHeader('Content-Disposition', `attachment; filename="rekap-nilai-shanatech-${new Date().toISOString().slice(0, 10)}.csv"`)
   res.send(csv)
 }))
 

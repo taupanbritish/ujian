@@ -30,6 +30,7 @@ const awal = () => {
 }
 
 export default function UjianForm({ terbuka, onTutup, ujian, mapel, kelas, onTersimpan }) {
+  const mapelTunggal = mapel?.length === 1 ? mapel[0].id : ''
   const [form, setForm] = useState(awal)
   const [galat, setGalat] = useState({})
   const toast = useToast()
@@ -55,8 +56,8 @@ export default function UjianForm({ terbuka, onTutup, ujian, mapel, kelas, onTer
       kkm: Number(ujian.kkm),
       batas_percobaan: ujian.batas_percobaan,
       kelas_target: ujian.kelas_target || [],
-    } : awal())
-  }, [terbuka, ujian])
+    } : { ...awal(), mapel_id: mapelTunggal })
+  }, [terbuka, ujian, mapelTunggal])
 
   const ubah = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 

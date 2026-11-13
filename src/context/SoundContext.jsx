@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { bunyi as mainkan, setSuaraAktif } from '../lib/sound'
 
 const Konteks = createContext(null)
-const KUNCI = 'cendekia.suara'
+const KUNCI = 'shanatech.suara'
 
 export function SoundProvider({ children }) {
   const [aktif, setAktif] = useState(() => localStorage.getItem(KUNCI) !== 'mati')

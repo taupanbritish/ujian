@@ -18,7 +18,7 @@ import TeksSoal from '../../components/TeksSoal'
 import LampiranSoal from '../../components/LampiranSoal'
 import { TIPE, TINGKAT, tanggal, jawabanTeks } from '../../lib/format'
 
-const KUNCI_TAMPILAN = 'cendekia.tampilan-soal'
+const KUNCI_TAMPILAN = 'shanatech.tampilan-soal'
 
 // Kolom template impor soal. Urutan ini pula yang dipakai menyusun file template.
 const KOLOM_IMPOR_SOAL = [
@@ -106,7 +106,7 @@ export default function BankSoal() {
   const [urutan, setUrutan] = useState('terbaru')
   const [belumDipakai, setBelumDipakai] = useState(false)
   const [halaman, setHalaman] = useState(1)
-  const [tampilan, setTampilan] = useState(() => localStorage.getItem('cendekia.mode-soal') || 'tabel')
+  const [tampilan, setTampilan] = useState(() => localStorage.getItem('shanatech.mode-soal') || 'tabel')
   const [terpilih, setTerpilih] = useState([])
   const [formTerbuka, setFormTerbuka] = useState(params.get('baru') === '1')
   const [imporTerbuka, setImporTerbuka] = useState(false)
@@ -124,7 +124,7 @@ export default function BankSoal() {
     return () => clearTimeout(t)
   }, [cari])
 
-  useEffect(() => { localStorage.setItem('cendekia.mode-soal', tampilan) }, [tampilan])
+  useEffect(() => { localStorage.setItem('shanatech.mode-soal', tampilan) }, [tampilan])
   useEffect(() => { setTerpilih([]) }, [cariDeb, mapel, tipe, tingkat, halaman])
 
   const { data: meta } = useQuery({ queryKey: ['meta'], queryFn: () => api('/auth/meta'), staleTime: 120000 })

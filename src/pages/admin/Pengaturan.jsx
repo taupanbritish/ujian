@@ -186,7 +186,7 @@ function CadanganData() {
   const perkakas = data?.perkakas || {}
 
   const unduh = useMutation({
-    mutationFn: () => unduhBerkas('/pengaturan/cadangan/unduh', `cadangan-cendekia-${stempelUnduhan()}.tar.gz`),
+    mutationFn: () => unduhBerkas('/pengaturan/cadangan/unduh', `cadangan-shanatech-${stempelUnduhan()}.tar.gz`),
     onSuccess: () => {
       bunyi('simpan')
       qc.invalidateQueries({ queryKey: ['cadangan-info'] })
@@ -523,7 +523,7 @@ export default function Pengaturan() {
 
           <div className="mt-4 space-y-3.5">
             <Field label="Nama sekolah" wajib pesan={galat.nama_sekolah} petunjuk="Tampil di bilah samping, halaman masuk, kop lembar jawaban, dan footer.">
-              <input value={form.nama_sekolah} onChange={(e) => set('nama_sekolah', e.target.value)} className="kolom-field" maxLength={120} placeholder="Contoh: SMP Negeri 1 Nusantara" />
+              <input value={form.nama_sekolah} onChange={(e) => set('nama_sekolah', e.target.value)} className="kolom-field" maxLength={120} placeholder="Contoh: SMP Negeri 1 ShanaTech" />
             </Field>
             <Field label="Nama aplikasi" wajib pesan={galat.nama_aplikasi} petunjuk="Kata pertama menjadi nama utama, sisanya menjadi lencana (mis. “ShanaTech CBT”).">
               <input value={form.nama_aplikasi} onChange={(e) => set('nama_aplikasi', e.target.value)} className="kolom-field" maxLength={60} placeholder="Contoh: ShanaTech CBT" />

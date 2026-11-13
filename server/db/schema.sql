@@ -1,4 +1,4 @@
--- Cendekia CBT — skema PostgreSQL (idempoten)
+-- ShanaTech CBT — skema PostgreSQL (idempoten)
 CREATE TABLE IF NOT EXISTS pengguna (
   id               SERIAL PRIMARY KEY,
   nama             TEXT NOT NULL,

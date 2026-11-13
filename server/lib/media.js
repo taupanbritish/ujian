@@ -10,7 +10,7 @@ export const DIR_MEDIA = process.env.MEDIA_DIR
   ? resolve(process.env.MEDIA_DIR)
   : resolve(dirLib, '..', 'uploads')
 
-const rahasia = process.env.MEDIA_SECRET || process.env.JWT_SECRET || 'cendekia-dev-secret'
+const rahasia = process.env.MEDIA_SECRET || process.env.JWT_SECRET || 'shanatech-dev-secret'
 
 // Batas ukuran per jenis. Angka ini juga dipakai antarmuka sebagai petunjuk.
 export const BATAS_UKURAN = { gambar: 5 * 1024 * 1024, audio: 20 * 1024 * 1024, video: 50 * 1024 * 1024 }

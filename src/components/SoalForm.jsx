@@ -78,7 +78,11 @@ const untukKirim = (daftar = []) => daftar.map((l) => (
 ))
 
 export default function SoalForm({ terbuka, onTutup, soal, mapel, mapelAktif }) {
-  const [form, setForm] = useState(kosong(mapelAktif))
+  // Guru umumnya mengampu satu mapel: langsung pilih mapel itu agar tidak
+  // ada pilihan lain yang bisa salah. Saringan mapel aktif tetap diutamakan.
+  const mapelTunggal = mapel?.length === 1 ? mapel[0].id : ''
+  const mapelAwal = mapelAktif || mapelTunggal
+  const [form, setForm] = useState(kosong(mapelAwal))
   const [galat, setGalat] = useState({})
   const refPertanyaan = useRef(null)
   const lepasRef = useRef(new Set())
@@ -89,11 +93,11 @@ export default function SoalForm({ terbuka, onTutup, soal, mapel, mapelAktif }) 
 
   useEffect(() => {
     if (terbuka) {
-      setForm(soal ? dariSoal(soal) : kosong(mapelAktif))
+      setForm(soal ? dariSoal(soal) : kosong(mapelAwal))
       setGalat({})
       lepasRef.current = new Set()
     }
-  }, [terbuka, soal, mapelAktif])
+  }, [terbuka, soal, mapelAwal])
 
   const ubah = (k, v) => setForm((f) => ({ ...f, [k]: v }))
   const ubahOpsi = (id, patch) => setForm((f) => ({

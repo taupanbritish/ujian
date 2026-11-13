@@ -49,7 +49,7 @@ export function cariBiner(nama) {
 const cariTar = () => ['/usr/bin/tar', '/bin/tar'].find(existsSync) || null
 
 const stempel = () => new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-export const namaArsip = () => `cadangan-cendekia-${stempel()}.tar.gz`
+export const namaArsip = () => `cadangan-shanatech-${stempel()}.tar.gz`
 
 const urlBasis = () => process.env.DATABASE_URL
 
@@ -109,7 +109,7 @@ export async function buatCadangan() {
   if (!url) throw new Galat(503, 'DATABASE_URL belum diatur.')
 
   await mkdir(DIR_CADANGAN, { recursive: true })
-  const kerja = await mkdtemp(join(tmpdir(), 'cendekia-cadangan-'))
+  const kerja = await mkdtemp(join(tmpdir(), 'shanatech-cadangan-'))
   const dump = join(kerja, 'database.dump')
   const folderMedia = join(kerja, 'media')
   const arsip = join(kerja, namaArsip())
@@ -153,7 +153,7 @@ export async function pulihkanCadangan(arsipUnggahan) {
   const url = urlBasis()
   if (!pgRestore || !tar || !url) throw new Galat(503, 'pg_restore/tar tidak tersedia atau DATABASE_URL kosong.')
 
-  const kerja = await mkdtemp(join(tmpdir(), 'cendekia-pulih-'))
+  const kerja = await mkdtemp(join(tmpdir(), 'shanatech-pulih-'))
   try {
     await jalankan(tar, ['-xzf', arsipUnggahan, '-C', kerja], { maxBuffer: 1024 * 1024 })
     const dump = join(kerja, 'database.dump')

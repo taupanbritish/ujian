@@ -6,7 +6,7 @@ import { JENJANG, jenjangValid, kelasUntuk, labelJenjang } from './jenjang.js'
 const bawaan = () => {
   const jenjang = jenjangValid(process.env.SEKOLAH_JENJANG) ? process.env.SEKOLAH_JENJANG : 'SMP'
   return {
-    nama_sekolah: process.env.SEKOLAH_NAMA || `${JENJANG[jenjang].singkat} Cendekia Nusantara`,
+    nama_sekolah: process.env.SEKOLAH_NAMA || `${JENJANG[jenjang].singkat} ShanaTech`,
     jenjang,
     tahun_ajaran: process.env.TAHUN_AJARAN || '2026/2027',
     nama_aplikasi: process.env.NAMA_APLIKASI || 'ShanaTech CBT',

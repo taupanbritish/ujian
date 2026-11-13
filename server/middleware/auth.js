@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken'
 import { satu } from '../db/pool.js'
 import { Galat } from '../lib/http.js'
 
-const rahasia = process.env.JWT_SECRET || 'cendekia-dev-secret'
+const rahasia = process.env.JWT_SECRET || 'shanatech-dev-secret'
 
 export const buatToken = (p) => jwt.sign({ id: p.id, peran: p.peran }, rahasia, { expiresIn: process.env.JWT_EXPIRES || '12h' })
 

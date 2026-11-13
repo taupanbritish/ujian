@@ -1,9 +1,9 @@
 {
-  "name": "cendekia-cbt",
+  "name": "shanatech-cbt",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Cendekia CBT — aplikasi ujian berbasis komputer (React + Vite + Tailwind + PostgreSQL)",
+  "description": "ShanaTech CBT — aplikasi ujian berbasis komputer (React + Vite + Tailwind + PostgreSQL)",
   "scripts": {
     "dev": "concurrently -k -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "node --watch server/index.js",

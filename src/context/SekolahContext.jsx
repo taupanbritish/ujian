@@ -5,7 +5,7 @@ import { api } from '../lib/api'
 // Identitas sekolah satu sumber di sisi klien. Nilai bawaan dipakai sementara
 // selama /api/pengaturan dimuat agar antarmuka tidak pernah kosong.
 const BAWAAN = {
-  nama_sekolah: 'SMP Cendekia Nusantara',
+  nama_sekolah: 'SMP ShanaTech',
   jenjang: 'SMP',
   label_jenjang: 'Sekolah Menengah Pertama',
   tahun_ajaran: '2026/2027',

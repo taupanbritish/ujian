@@ -101,8 +101,12 @@ r.get('/', bungkus(async (req, res) => {
   res.json({ data: rows.rows.map((s) => tautkanSoal(s)), total: total.n, halaman, batas, ringkas })
 }))
 
-r.get('/arsip/daftar', bungkus(async (_req, res) => {
-  const rows = await q(`SELECT ${KOLOM} FROM soal s JOIN mapel m ON m.id=s.mapel_id WHERE s.dihapus_pada IS NOT NULL ORDER BY s.dihapus_pada DESC LIMIT 100`)
+r.get('/arsip/daftar', bungkus(async (req, res) => {
+  const gm = await batasiMapel(req)
+  const params = []
+  let where = 's.dihapus_pada IS NOT NULL'
+  if (gm) { params.push(gm); where += ' AND s.mapel_id = ANY($1::int[])' }
+  const rows = await q(`SELECT ${KOLOM} FROM soal s JOIN mapel m ON m.id=s.mapel_id WHERE ${where} ORDER BY s.dihapus_pada DESC LIMIT 100`, params)
   res.json({ data: rows.rows.map((s) => tautkanSoal(s)) })
 }))
 
@@ -119,6 +123,9 @@ r.get('/:id', bungkus(async (req, res) => {
 
 r.post('/', bungkus(async (req, res) => {
   const v = skemaSoal.parse(req.body)
+  if (!milikGuru(await batasiMapel(req), v.mapel_id)) {
+    throw new Galat(403, 'Soal hanya dapat dibuat untuk mata pelajaran yang Anda ampu.')
+  }
   await pastikanMedia(v)
   const baru = await satu(
     `INSERT INTO soal (mapel_id,tipe,pertanyaan,opsi,lampiran,kunci,pembahasan,tingkat,bobot,topik,dibuat_oleh)
@@ -255,9 +262,13 @@ r.post('/import', bungkus(async (req, res) => {
 
 r.patch('/:id', bungkus(async (req, res) => {
   const id = angka(req.params.id)
-  const ada = await satu('SELECT id FROM soal WHERE id=$1 AND dihapus_pada IS NULL', [id])
+  const ada = await satu('SELECT id, mapel_id FROM soal WHERE id=$1 AND dihapus_pada IS NULL', [id])
   if (!ada) throw new Galat(404, 'Soal tidak ditemukan.')
   const v = skemaSoal.parse(req.body)
+  const gm = await batasiMapel(req)
+  if (!milikGuru(gm, ada.mapel_id) || !milikGuru(gm, v.mapel_id)) {
+    throw new Galat(404, 'Soal tidak ditemukan.')
+  }
   await pastikanMedia(v)
   await q(
     `UPDATE soal SET mapel_id=$1,tipe=$2,pertanyaan=$3,opsi=$4::jsonb,lampiran=$5::jsonb,kunci=$6,pembahasan=$7,tingkat=$8,bobot=$9,topik=$10,diubah_pada=now() WHERE id=$11`,
@@ -269,26 +280,38 @@ r.patch('/:id', bungkus(async (req, res) => {
 
 r.delete('/:id', bungkus(async (req, res) => {
   const id = angka(req.params.id)
-  const ada = await satu('SELECT id FROM soal WHERE id=$1 AND dihapus_pada IS NULL', [id])
+  const ada = await satu('SELECT id, mapel_id FROM soal WHERE id=$1 AND dihapus_pada IS NULL', [id])
   if (!ada) throw new Galat(404, 'Soal tidak ditemukan.')
+  if (!milikGuru(await batasiMapel(req), ada.mapel_id)) throw new Galat(404, 'Soal tidak ditemukan.')
   await q('UPDATE soal SET dihapus_pada=now() WHERE id=$1', [id])
   res.json({ pesan: 'Soal dipindahkan ke arsip.', id })
 }))
 
 r.post('/hapus-banyak', bungkus(async (req, res) => {
   const ids = z.array(z.coerce.number().int().positive()).min(1).max(200).parse(req.body.ids)
-  const hasil = await q('UPDATE soal SET dihapus_pada=now() WHERE id = ANY($1::int[]) AND dihapus_pada IS NULL RETURNING id', [ids])
+  const gm = await batasiMapel(req)
+  const params = [ids]
+  let where = 'id = ANY($1::int[]) AND dihapus_pada IS NULL'
+  if (gm) { params.push(gm); where += ' AND mapel_id = ANY($2::int[])' }
+  const hasil = await q(`UPDATE soal SET dihapus_pada=now() WHERE ${where} RETURNING id`, params)
   res.json({ pesan: `${hasil.rows.length} soal diarsipkan.`, ids: hasil.rows.map((x) => x.id) })
 }))
 
 r.post('/pulihkan', bungkus(async (req, res) => {
   const ids = z.array(z.coerce.number().int().positive()).min(1).max(200).parse(req.body.ids)
-  const hasil = await q('UPDATE soal SET dihapus_pada=NULL WHERE id = ANY($1::int[]) RETURNING id', [ids])
+  const gm = await batasiMapel(req)
+  const params = [ids]
+  let where = 'id = ANY($1::int[])'
+  if (gm) { params.push(gm); where += ' AND mapel_id = ANY($2::int[])' }
+  const hasil = await q(`UPDATE soal SET dihapus_pada=NULL WHERE ${where} RETURNING id`, params)
   res.json({ pesan: `${hasil.rows.length} soal dipulihkan.`, ids: hasil.rows.map((x) => x.id) })
 }))
 
 r.post('/:id/duplikat', bungkus(async (req, res) => {
   const id = angka(req.params.id)
+  const asal = await satu('SELECT mapel_id FROM soal WHERE id=$1 AND dihapus_pada IS NULL', [id])
+  if (!asal) throw new Galat(404, 'Soal tidak ditemukan.')
+  if (!milikGuru(await batasiMapel(req), asal.mapel_id)) throw new Galat(404, 'Soal tidak ditemukan.')
   const hasil = await satu(
     `INSERT INTO soal (mapel_id,tipe,pertanyaan,opsi,lampiran,kunci,pembahasan,tingkat,bobot,topik,dibuat_oleh)
      SELECT mapel_id,tipe,pertanyaan,opsi,lampiran,kunci,pembahasan,tingkat,bobot,topik,$2 FROM soal WHERE id=$1 AND dihapus_pada IS NULL RETURNING id`,

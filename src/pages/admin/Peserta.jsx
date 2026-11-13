@@ -28,7 +28,7 @@ const KOSONG_FORM = { nama: '', email: '', nis: '', peran: 'siswa', kelas: '', g
 // Kolom yang dikenali saat impor Excel peserta/akun.
 const KOLOM_IMPOR_PESERTA = [
   { kunci: 'nama', label: 'Nama Lengkap', wajib: true, contoh: 'Ahmad Fauzan Ramadhan' },
-  { kunci: 'email', label: 'Email', wajib: true, alias: ['surel'], contoh: 'ahmad@cendekia.sch.id' },
+  { kunci: 'email', label: 'Email', wajib: true, alias: ['surel'], contoh: 'ahmad@shanatech.sch.id' },
   { kunci: 'nis', label: 'NIS', alias: ['nis/nip', 'nip', 'nomor induk'], contoh: '26010' },
   { kunci: 'kelas', label: 'Kelas', alias: ['rombel'], contoh: 'IX-A' },
   { kunci: 'peran', label: 'Peran', alias: ['role'], contoh: 'siswa' },
@@ -152,7 +152,7 @@ function FormAkun({ terbuka, onTutup, akun, kelas }) {
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Email" wajib pesan={galat.email}>
-            <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="nama@cendekia.sch.id" className="kolom-field" />
+            <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="nama@shanatech.sch.id" className="kolom-field" />
           </Field>
           <Field label="NIS / NIP" pesan={galat.nis} petunjuk={form.peran === 'siswa' ? 'Dipakai peserta untuk masuk.' : 'Opsional untuk staf.'}>
             <input value={form.nis} onChange={(e) => set('nis', e.target.value)} placeholder="26001" className="kolom-field font-mono" maxLength={30} />

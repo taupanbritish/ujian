@@ -74,7 +74,7 @@ r.delete('/rombel/:id', wajibMasuk, boleh('admin'), bungkus(async (req, res) => 
 
 // ── Cadangan & pemulihan (database + folder media) ───────────────────────────
 const unggahArsip = multer({
-  dest: join(tmpdir(), 'cendekia-cadangan-unggah'),
+  dest: join(tmpdir(), 'shanatech-cadangan-unggah'),
   limits: { fileSize: 2 * 1024 * 1024 * 1024, files: 1 },
 })
 

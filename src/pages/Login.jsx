@@ -194,7 +194,7 @@ export default function Login() {
                     onChange={(e) => setIdentitas(e.target.value)}
                     autoComplete="username"
                     required
-                    placeholder="nama@cendekia.sch.id atau 26001"
+                    placeholder="nama@shanatech.sch.id atau 26001"
                     className="kolom-field"
                   />
                 </label>

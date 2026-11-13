@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Search, Download, ChartNoAxesCombined, Trophy, TrendingDown, Users, BadgeCheck, ClipboardCheck,
   Eye, CheckCircle2, XCircle, CircleSlash, PenLine, Save, Sparkles, Clock, MonitorSmartphone,
-  ArrowUpDown, Filter, ChevronRight, MessageSquareText, Award,
+  ArrowUpDown, Filter, ChevronRight, MessageSquareText, Award, FileText,
 } from 'lucide-react'
 import { api, pesanGalat, unduhBerkas } from '../../lib/api'
 import { useToast } from '../../context/ToastContext'
@@ -347,6 +347,7 @@ function LembarHasil({ id, onTutup, onPerubahan }) {
 
 export default function Hasil() {
   const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
   const toast = useToast()
   const { bunyi } = useSuara()
   const qc = useQueryClient()
@@ -392,7 +393,7 @@ export default function Hasil() {
     setMengunduh(true)
     bunyi('buka')
     try {
-      await unduhBerkas(`/hasil/ekspor/csv${queryString ? `?${queryString}` : ''}`, `rekap-nilai-cendekia-${new Date().toISOString().slice(0, 10)}.csv`)
+      await unduhBerkas(`/hasil/ekspor/csv${queryString ? `?${queryString}` : ''}`, `rekap-nilai-shanatech-${new Date().toISOString().slice(0, 10)}.csv`)
       toast.sukses('Rekap nilai diunduh', { pesan: 'Berkas CSV memakai pemisah titik koma dan siap dibuka di Excel atau Google Sheets.' })
     } catch (e) {
       bunyi('gagal')
@@ -426,6 +427,19 @@ export default function Hasil() {
         pesan="Telusuri setiap lembar jawaban, berikan poin untuk soal uraian, lalu tuntaskan penilaian agar nilai akhir terkunci."
         kanan={
           <>
+            <Tombol
+              varian="kedua"
+              ikon={FileText}
+              onClick={() => {
+                const p = new URLSearchParams()
+                if (ujianId) p.set('ujian_id', ujianId)
+                if (kelas !== 'semua') p.set('kelas', kelas)
+                bunyi('buka')
+                navigate(`/admin/laporan${p.toString() ? `?${p}` : ''}`)
+              }}
+            >
+              Laporan nilai
+            </Tombol>
             <Tombol varian="kedua" ikon={Download} memuat={mengunduh} onClick={unduh} disabled={rows.length === 0}>Unduh CSV</Tombol>
             <Tombol varian="utama" ikon={ClipboardCheck} onClick={() => { bunyi('klik'); ubah('penilaian', penilaian === 'perlu' ? 'semua' : 'perlu') }}>
               {penilaian === 'perlu' ? 'Lihat semua lembar' : 'Perlu dinilai'}

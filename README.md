@@ -47,6 +47,8 @@ didistribusikan ke sekolah lain cukup dengan mengubah identitas pada berkas `.en
   pengacakan soal/opsi. **Impor Excel** untuk membuat banyak ujian sekaligus.
 - **Pengawasan** langsung: status peserta, progres pengerjaan, sisa waktu, dan log aktivitas.
 - **Hasil & Nilai**: penilaian otomatis (PG/benar-salah/isian) dan manual (uraian), ekspor CSV.
+- **Laporan nilai**: rekap per mata pelajaran dan kelas, ringkasan per ujian, daftar nilai peserta,
+  serta unduhan CSV dengan saringan yang sama.
 - **Mata Pelajaran** per jenjang + katalog rekomendasi bawaan; penentuan guru pengampu.
 - **Peserta & Akun**: CRUD akun, **impor Excel** peserta dengan pembangkitan sandi acak.
 - **Pengaturan Sekolah**: nama sekolah, nama aplikasi, tahun ajaran, jenjang, kelas manual (rombel),
@@ -54,7 +56,8 @@ didistribusikan ke sekolah lain cukup dengan mengubah identitas pada berkas `.en
 
 **Guru**
 
-- Empat alur mengajar: **Bank Soal, Ujian, Pengawasan, Hasil & Nilai** (plus Profil).
+- Empat alur mengajar: **Bank Soal, Ujian, Pengawasan, Hasil & Nilai** (plus Profil), dengan
+  tombol **Laporan nilai** untuk merekap hasil berdasarkan mapel dan kelas yang diampu.
 - Seluruh data **dibatasi pada mata pelajaran yang diampu** (`mapel.guru_id`): guru hanya melihat
   soal, paket ujian, pengawasan, dan hasil untuk mapel miliknya. Akses langsung ke mapel lain ditolak (404).
 
@@ -98,7 +101,7 @@ yang dibuat saat instalasi:
 Masukkan kata sandi PostgreSQL saat diminta, lalu buat database aplikasi:
 
 ```sql
-CREATE DATABASE cendekia;
+CREATE DATABASE shanatech;
 \q
 ```
 
@@ -112,7 +115,7 @@ cp .env.example .env
 Contoh jika username-nya `postgres`:
 
 ```env
-DATABASE_URL=postgresql://postgres:KATA_SANDI@127.0.0.1:5432/cendekia
+DATABASE_URL=postgresql://postgres:KATA_SANDI@127.0.0.1:5432/shanatech
 ```
 
 Ganti `KATA_SANDI` dengan kata sandi yang dipakai saat instalasi. Jika kata sandi mengandung
@@ -195,7 +198,7 @@ Salin dari `.env.example`. Nilai penting:
 | Variabel | Bawaan / contoh | Keterangan |
 |---|---|---|
 | `PORT` | `4310` | Port API Express |
-| `DATABASE_URL` | `postgresql://user:pass@127.0.0.1:5433/cendekia` | Koneksi PostgreSQL; arahkan ke cloud bila perlu |
+| `DATABASE_URL` | `postgresql://user:pass@127.0.0.1:5433/shanatech` | Koneksi PostgreSQL; arahkan ke cloud bila perlu |
 | `DATABASE_SSL` | otomatis | SSL aktif otomatis bila host bukan localhost; paksa `true`/`false` |
 | `DATABASE_POOL_MAX` | `10` | Koneksi maksimum per proses Node; lihat [Kapasitas database](#kapasitas-database--auto-save) |
 | `DATABASE_APP_INSTANCES` | `1` | Jumlah proses API bersamaan (cluster/PM2) untuk peringatan kapasitas |
@@ -208,13 +211,13 @@ Salin dari `.env.example`. Nilai penting:
 | `MEDIA_SECRET` | `JWT_SECRET` | Rahasia HMAC URL media; ganti bila URL media ingin terpisah dari token sesi |
 | `PG_BIN_DIR` / `PG_DUMP` / `PG_RESTORE` | otomatis | Jalur perkakas cadangan bila tidak terdeteksi di `PATH` |
 | `BACKUP_DIR` | `server/backups` | Folder cadangan pengaman otomatis sebelum pemulihan |
-| `SEED_ADMIN_EMAIL` | `admin@cendekia.sch.id` | Email admin yang dibuat seeder |
-| `SEED_ADMIN_PASSWORD` | `"Cendekia#2026"` | Sandi admin (kutip bila mengandung `#`/`$`) |
-| `SEED_GURU_PASSWORD` | `"Cendekia#2026"` | Sandi guru |
-| `SEED_SISWA_PASSWORD` | `"Cendekia#2026"` | Sandi seluruh siswa demo |
+| `SEED_ADMIN_EMAIL` | `admin@shanatech.sch.id` | Email admin yang dibuat seeder |
+| `SEED_ADMIN_PASSWORD` | `"ShanaTech#2026"` | Sandi admin (kutip bila mengandung `#`/`$`) |
+| `SEED_GURU_PASSWORD` | `"ShanaTech#2026"` | Sandi guru |
+| `SEED_SISWA_PASSWORD` | `"ShanaTech#2026"` | Sandi seluruh siswa demo |
 | `DEMO_MASUK` | `true` | Tombol masuk cepat demo; **wajib `false` di produksi** |
 | `SEKOLAH_JENJANG` | `SMP` | `SD` / `SMP` / `SMA` / `SMK`; menentukan kelas, mapel, paket soal |
-| `SEKOLAH_NAMA` | `"SMP Cendekia Nusantara"` | Nama sekolah tampil di antarmuka |
+| `SEKOLAH_NAMA` | `"SMP ShanaTech"` | Nama sekolah tampil di antarmuka |
 | `TAHUN_AJARAN` | `"2026/2027"` | Tahun ajaran aktif |
 | `NAMA_APLIKASI` | `"ShanaTech CBT"` | Kata pertama = nama utama, sisanya = lencana |
 
@@ -240,14 +243,14 @@ Hasil, Mata Pelajaran, Peserta & Akun, serta Pengaturan.
 | Item | Nilai bawaan |
 |---|---|
 | Nama | Administrator Sekolah |
-| Email | `admin@cendekia.sch.id` |
+| Email | `admin@shanatech.sch.id` |
 | NIS | `ADM-001` |
-| Kata sandi | `Cendekia#2026` |
+| Kata sandi | `ShanaTech#2026` |
 
 Cara masuk:
 
-1. Buka `/masuk`, lalu isi **Email atau NIS** dengan `admin@cendekia.sch.id` (atau `ADM-001`).
-2. Isi **Kata sandi** dengan `Cendekia#2026`, lalu klik **Masuk sekarang**.
+1. Buka `/masuk`, lalu isi **Email atau NIS** dengan `admin@shanatech.sch.id` (atau `ADM-001`).
+2. Isi **Kata sandi** dengan `ShanaTech#2026`, lalu klik **Masuk sekarang**.
 3. Setelah masuk, ganti kata sandi lewat menu **Profil** agar tidak memakai sandi demo.
 
 Nilai tersebut berasal dari `SEED_ADMIN_EMAIL` dan `SEED_ADMIN_PASSWORD` di `.env` dan hanya
@@ -260,13 +263,13 @@ kuat **sebelum** seeding, lalu set `DEMO_MASUK=false`.
 
 | Peran | Nama | Email | NIS | Sandi |
 |---|---|---|---|---|
-| Administrator | Administrator Sekolah | `admin@cendekia.sch.id` | `ADM-001` | `Cendekia#2026` |
-| Guru | Guru Informatika | `guru@shanatech.sch.id` | `GR-001` | `Cendekia#2026` |
-| Siswa | Ahmad Fauzan Ramadhan | `ahmad.fauzan@siswa.shanatech.sch.id` | `26001` | `Cendekia#2026` |
-| Siswa | Nadia Putri Anggraini | `nadia.putri@siswa.shanatech.sch.id` | `26002` | `Cendekia#2026` |
-| Siswa | Rizky Aditya Nugroho | `rizky.aditya@siswa.shanatech.sch.id` | `26003` | `Cendekia#2026` |
-| Siswa | Salsabila Azzahra | `salsabila.azzahra@siswa.shanatech.sch.id` | `26004` | `Cendekia#2026` |
-| Siswa | Bagas Dwi Prakoso | `bagas.dwi@siswa.shanatech.sch.id` | `26005` | `Cendekia#2026` |
+| Administrator | Administrator Sekolah | `admin@shanatech.sch.id` | `ADM-001` | `ShanaTech#2026` |
+| Guru | Guru Informatika | `guru@shanatech.sch.id` | `GR-001` | `ShanaTech#2026` |
+| Siswa | Ahmad Fauzan Ramadhan | `ahmad.fauzan@siswa.shanatech.sch.id` | `26001` | `ShanaTech#2026` |
+| Siswa | Nadia Putri Anggraini | `nadia.putri@siswa.shanatech.sch.id` | `26002` | `ShanaTech#2026` |
+| Siswa | Rizky Aditya Nugroho | `rizky.aditya@siswa.shanatech.sch.id` | `26003` | `ShanaTech#2026` |
+| Siswa | Salsabila Azzahra | `salsabila.azzahra@siswa.shanatech.sch.id` | `26004` | `ShanaTech#2026` |
+| Siswa | Bagas Dwi Prakoso | `bagas.dwi@siswa.shanatech.sch.id` | `26005` | `ShanaTech#2026` |
 
 - Login menerima **email atau NIS** (tidak peka huruf besar/kecil).
 - Sandi mengikuti `SEED_*_PASSWORD` pada `.env`; tabel di atas memakai nilai bawaan contoh.
@@ -285,6 +288,7 @@ kuat **sebelum** seeding, lalu set `DEMO_MASUK=false`.
 | Ujian / penyusun paket | ✔ | ✔¹ | – |
 | Pengawasan langsung | ✔ | ✔¹ | – |
 | Hasil & Nilai (+ ekspor CSV) | ✔ | ✔¹ | – |
+| Laporan nilai per mapel & kelas | ✔ | ✔¹ | – |
 | Mata Pelajaran | ✔ | – | – |
 | Peserta & Akun | ✔ | – | – |
 | Pengaturan Sekolah | ✔ | – | – |
@@ -389,7 +393,7 @@ Menu **Pengaturan Sekolah → Cadangan & pemulihan** (khusus administrator) memb
 `.tar.gz` berisi:
 
 ```
-cadangan-cendekia-YYYY-MM-DDTHH-MM-SS.tar.gz
+cadangan-shanatech-YYYY-MM-DDTHH-MM-SS.tar.gz
 ├── database.dump      # pg_dump format custom (-Fc)
 ├── media/             # seluruh berkas gambar, audio, video
 └── manifest.json      # waktu, info basis data, jumlah media, sha256 database
