@@ -25,12 +25,13 @@ didistribusikan ke sekolah lain cukup dengan mengubah identitas pada berkas `.en
 7. [Hak akses per peran](#hak-akses-per-peran)
 8. [Impor Excel bank soal](#impor-excel-bank-soal)
 9. [Rumus matematika & media soal](#rumus-matematika--media-soal)
-10. [Cadangan & pemulihan](#cadangan--pemulihan)
-11. [Struktur folder](#struktur-folder)
-12. [Catatan arsitektur](#catatan-arsitektur)
-13. [Kapasitas database & auto-save](#kapasitas-database--auto-save)
-14. [Build & produksi](#build--produksi)
-15. [Pengembangan & pemeriksaan](#pengembangan--pemeriksaan)
+10. [Kartu ujian & laporan cetak](#kartu-ujian--laporan-cetak)
+11. [Cadangan & pemulihan](#cadangan--pemulihan)
+12. [Struktur folder](#struktur-folder)
+13. [Catatan arsitektur](#catatan-arsitektur)
+14. [Kapasitas database & auto-save](#kapasitas-database--auto-save)
+15. [Build & produksi](#build--produksi)
+16. [Pengembangan & pemeriksaan](#pengembangan--pemeriksaan)
 
 ---
 
@@ -48,11 +49,15 @@ didistribusikan ke sekolah lain cukup dengan mengubah identitas pada berkas `.en
 - **Pengawasan** langsung: status peserta, progres pengerjaan, sisa waktu, dan log aktivitas.
 - **Hasil & Nilai**: penilaian otomatis (PG/benar-salah/isian) dan manual (uraian), ekspor CSV.
 - **Laporan nilai**: rekap per mata pelajaran dan kelas, ringkasan per ujian, daftar nilai peserta,
-  serta unduhan CSV dengan saringan yang sama.
+  unduhan CSV, serta **cetak PDF berkop surat** (logo, nama, dan alamat sekolah).
+- **Kartu Ujian**: cetak kartu peserta per ujian/kelas dalam tata letak A4. Kartu memuat logo dan
+  nama sekolah, alamat, identitas peserta, **foto peserta**, jadwal, dan durasi ujian.
 - **Mata Pelajaran** per jenjang + katalog rekomendasi bawaan; penentuan guru pengampu.
-- **Peserta & Akun**: CRUD akun, **impor Excel** peserta dengan pembangkitan sandi acak.
-- **Pengaturan Sekolah**: nama sekolah, nama aplikasi, tahun ajaran, jenjang, kelas manual (rombel),
-  serta **cadangan & pemulihan** database + folder media dalam satu arsip.
+- **Peserta & Akun**: CRUD akun, **impor Excel** peserta dengan pembangkitan sandi acak, serta
+  unggah **foto peserta** (rasio 3:4) untuk kartu ujian.
+- **Pengaturan Sekolah**: logo sekolah, nama sekolah, **alamat sekolah** untuk kop surat, nama
+  aplikasi, tahun ajaran, jenjang, kelas manual (rombel), serta **cadangan & pemulihan**
+  database + folder media dalam satu arsip.
 
 **Guru**
 
@@ -289,6 +294,8 @@ kuat **sebelum** seeding, lalu set `DEMO_MASUK=false`.
 | Pengawasan langsung | ✔ | ✔¹ | – |
 | Hasil & Nilai (+ ekspor CSV) | ✔ | ✔¹ | – |
 | Laporan nilai per mapel & kelas | ✔ | ✔¹ | – |
+| Kartu ujian (cetak) | ✔ | – | – |
+| Laporan cetak PDF (berkop surat) | ✔ | ✔¹ | – |
 | Mata Pelajaran | ✔ | – | – |
 | Peserta & Akun | ✔ | – | – |
 | Pengaturan Sekolah | ✔ | – | – |
@@ -384,6 +391,53 @@ monitoring nilai, dan panel penilaian uraian.
 - Folder penyimpanan bawaan: `server/uploads` (ubah lewat `MEDIA_DIR`). Di produksi, arahkan
   ke volume persisten agar berkas tidak hilang saat deploy. Berkas media **tidak** disajikan
   sebagai aset statis publik.
+
+---
+
+## Kartu ujian & laporan cetak
+
+### Identitas pada dokumen (logo & alamat)
+
+Buka **Pengaturan Sekolah → Identitas sekolah**. Unggah **logo sekolah** (PNG/JPG/WebP, maksimal
+5 MB, disarankan rasio 1:1) dan isi **alamat sekolah** (maksimal 300 karakter). Keduanya dipakai
+oleh kartu ujian, kop laporan, sidebar, halaman masuk, dan favicon teks aplikasi. Bila belum ada
+logo, aplikasi memakai tanda bawaan; bila alamat kosong, kop hanya menampilkan nama sekolah.
+
+`SEKOLAH_ALAMAT` di `.env` hanya menjadi nilai awal saat database belum menyimpan alamat. Setelah
+disimpan lewat menu Pengaturan, nilai database yang dipakai.
+
+### Foto peserta
+
+Buka **Peserta & Akun → Ubah akun** pada akun peserta, lalu unggah **Foto peserta** (rasio 3:4,
+JPG/PNG/WebP, maksimal 5 MB). Foto disimpan sebagai media bertanda tangan, bukan folder publik.
+Peserta tanpa foto tetap mendapat kartu dengan kotak inisial berukuran sama, sehingga tata letak
+cetak tidak bergeser.
+
+### Cetak kartu ujian (khusus administrator)
+
+1. Buka menu **Kartu Ujian**.
+2. Pilih ujian, lalu persempit kelas bila perlu. Pratinjau menampilkan ringkasan jumlah peserta,
+   jumlah yang sudah berfoto, dan contoh kartu.
+3. Klik **Cetak kartu** untuk membuka dokumen A4 dua kolom, lalu **Cetak / Simpan PDF**.
+
+Kartu hanya memuat peserta aktif pada kelas sasaran ujian (`ujian.kelas_target`); kelas kosong
+berarti semua kelas. Token ujian sengaja **tidak** dicetak. Endpoint `GET /api/kartu` khusus
+administrator (guru mendapat 403).
+
+### Cetak laporan hasil (PDF)
+
+Buka **Hasil & Nilai → Laporan nilai** (atau menu Laporan pada akun guru), atur saringan mata
+pelajaran/kelas/ujian, lalu klik **Cetak PDF**. Dokumen A4 berisi:
+
+- kop surat sekolah: logo, nama, dan alamat;
+- ringkasan ujian, lembar nilai, rata-rata, dan ketuntasan KKM;
+- rekap per ujian dan daftar nilai per peserta (seluruh baris, bukan hanya halaman aktif);
+- kolom tanda tangan Kepala Sekolah dan administrator yang mencetak.
+
+Saringan yang sama dipakai untuk pratinjau, CSV, dan PDF. Nilai yang masih menunggu poin uraian
+ditandai dan belum dihitung tuntas. Dokumen memakai `@page A4` dan memecah tabel panjang ke
+halaman berikutnya; pilih **Simpan sebagai PDF** pada dialog cetak peramban untuk mengarsipkan
+berkas.
 
 ---
 

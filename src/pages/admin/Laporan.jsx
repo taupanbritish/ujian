@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeft, BadgeCheck, ChartNoAxesCombined, Download, FileText, Filter,
-  GraduationCap, PenLine, Trophy, Users, XCircle,
+  GraduationCap, PenLine, Printer, Trophy, Users, XCircle,
 } from 'lucide-react'
 import { api, pesanGalat, unduhBerkas } from '../../lib/api'
 import { useToast } from '../../context/ToastContext'
@@ -110,6 +110,14 @@ export default function Laporan() {
               onClick={() => { bunyi('buka'); navigate(`/admin/hasil${kembali.toString() ? `?${kembali}` : ''}`) }}
             >
               Buka hasil
+            </Tombol>
+            <Tombol
+              varian="kedua"
+              ikon={Printer}
+              onClick={() => navigate(`/admin/laporan/cetak${queryString ? `?${queryString}` : ''}`)}
+              disabled={!detail.length}
+            >
+              Cetak PDF
             </Tombol>
             <Tombol varian="utama" ikon={Download} memuat={mengunduh} onClick={unduh} disabled={!detail.length}>
               Unduh CSV

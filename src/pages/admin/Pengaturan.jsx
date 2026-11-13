@@ -4,6 +4,7 @@ import {
   Save, School, Building2, CalendarDays, Layers, Terminal,
   GraduationCap, Sparkles, Lock, CheckCircle2, ArrowRight, RotateCcw, Info, Check,
   Plus, X, Users, DatabaseBackup, Download, UploadCloud, HardDrive, ShieldCheck, AlertTriangle,
+  ImagePlus, Trash2,
 } from 'lucide-react'
 import { api, apiUnggah, unduhBerkas, pesanGalat } from '../../lib/api'
 import { useAuth } from '../../context/AuthContext'
@@ -14,7 +15,7 @@ import { Tombol, Pil, Field, JudulBagian, Salin, Kosong, Konfirmasi, Segmen } fr
 import { Logo } from '../../components/Logo'
 import { JENJANG_INFO, DAFTAR_JENJANG, labelJenjang, warnaJenjang } from '../../lib/jenjang'
 
-function Pratinjau({ namaSekolah, namaAplikasi, tahun, jenjang, labelJenjang: label }) {
+function Pratinjau({ namaSekolah, namaAplikasi, tahun, jenjang, labelJenjang: label, alamat }) {
   const bagian = (namaAplikasi || 'ShanaTech CBT').trim().split(/\s+/)
   const warna = warnaJenjang(jenjang)
   return (
@@ -33,6 +34,7 @@ function Pratinjau({ namaSekolah, namaAplikasi, tahun, jenjang, labelJenjang: la
               )}
             </span>
             <p className="mt-1 truncate text-[0.72rem] font-semibold text-mute">{namaSekolah || 'Nama sekolah'}</p>
+            {alamat?.trim() && <p className="mt-0.5 line-clamp-2 text-[0.66rem] leading-snug text-mute/85">{alamat}</p>}
           </div>
         </div>
         <div className="mt-4 rounded-xl border border-line-soft bg-ink-900/70 p-3.5">
@@ -393,9 +395,11 @@ export default function Pengaturan() {
   const { bunyi } = useSuara()
   const qc = useQueryClient()
   const admin = pengguna.peran === 'admin'
+  const logoRef = useRef(null)
 
   const [form, setForm] = useState({
     nama_sekolah: sekolah.nama_sekolah,
+    alamat_sekolah: sekolah.alamat_sekolah || '',
     nama_aplikasi: sekolah.nama_aplikasi,
     tahun_ajaran: sekolah.tahun_ajaran,
   })
@@ -407,9 +411,10 @@ export default function Pengaturan() {
 
   const berubah = useMemo(() => (
     form.nama_sekolah.trim() !== sekolah.nama_sekolah ||
+    form.alamat_sekolah.trim() !== (sekolah.alamat_sekolah || '') ||
     form.nama_aplikasi.trim() !== sekolah.nama_aplikasi ||
     form.tahun_ajaran.trim() !== sekolah.tahun_ajaran
-  ), [form, sekolah.nama_sekolah, sekolah.nama_aplikasi, sekolah.tahun_ajaran])
+  ), [form, sekolah.nama_sekolah, sekolah.alamat_sekolah, sekolah.nama_aplikasi, sekolah.tahun_ajaran])
 
   const berubahJenjang = jenjangPilih !== sekolah.jenjang
 
@@ -418,6 +423,7 @@ export default function Pengaturan() {
       method: 'PUT',
       body: {
         nama_sekolah: form.nama_sekolah.trim(),
+        alamat_sekolah: form.alamat_sekolah.trim(),
         nama_aplikasi: form.nama_aplikasi.trim(),
         tahun_ajaran: form.tahun_ajaran.trim(),
       },
@@ -425,8 +431,8 @@ export default function Pengaturan() {
     onSuccess: (d) => {
       bunyi('simpan')
       sekolah.terapkan(d)
-      setForm({ nama_sekolah: d.nama_sekolah, nama_aplikasi: d.nama_aplikasi, tahun_ajaran: d.tahun_ajaran })
-      toast.sukses('Identitas sekolah diperbarui', { pesan: 'Seluruh antarmuka kini memakai nama dan tahun ajaran baru.' })
+      setForm({ nama_sekolah: d.nama_sekolah, alamat_sekolah: d.alamat_sekolah || '', nama_aplikasi: d.nama_aplikasi, tahun_ajaran: d.tahun_ajaran })
+      toast.sukses('Identitas sekolah diperbarui', { pesan: 'Seluruh antarmuka serta kop surat cetak kini memakai identitas baru.' })
     },
     onError: (e) => {
       bunyi('gagal')
@@ -434,6 +440,49 @@ export default function Pengaturan() {
       toast.gagal('Identitas belum tersimpan', { pesan: pesanGalat(e) })
     },
   })
+
+  const unggahLogo = useMutation({
+    mutationFn: async (file) => {
+      const fd = new FormData()
+      fd.append('berkas', file)
+      const { media } = await apiUnggah('/media', fd)
+      return api('/pengaturan', { method: 'PUT', body: { logo_media_id: media.id } })
+    },
+    onSuccess: (d) => {
+      bunyi('simpan')
+      sekolah.terapkan(d)
+      toast.sukses('Logo sekolah diperbarui', { pesan: 'Logo baru dipakai di antarmuka, kartu ujian, dan kop surat laporan.' })
+    },
+    onError: (e) => { bunyi('gagal'); toast.gagal('Logo belum tersimpan', { pesan: pesanGalat(e) }) },
+  })
+
+  const hapusLogo = useMutation({
+    mutationFn: () => api('/pengaturan', { method: 'PUT', body: { logo_media_id: null } }),
+    onSuccess: (d) => {
+      bunyi('peringatan')
+      sekolah.terapkan(d)
+      toast.ingat('Logo sekolah dihapus', { pesan: 'Tampilan kembali memakai logo bawaan aplikasi.' })
+    },
+    onError: (e) => { bunyi('gagal'); toast.gagal('Logo belum dihapus', { pesan: pesanGalat(e) }) },
+  })
+
+  const pilihLogo = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      bunyi('gagal')
+      toast.gagal('Berkas bukan gambar', { pesan: 'Pilih logo berformat PNG, JPG, atau WebP.' })
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      bunyi('gagal')
+      toast.gagal('Logo terlalu besar', { pesan: 'Ukuran maksimal 5 MB.' })
+      return
+    }
+    bunyi('pilih')
+    unggahLogo.mutate(file)
+  }
 
   const terapkanJenjang = useMutation({
     mutationFn: () => api('/pengaturan', { method: 'PUT', body: { jenjang: jenjangPilih } }),
@@ -466,10 +515,11 @@ export default function Pengaturan() {
   const blokEnv = useMemo(() => [
     `# Identitas sekolah — ubah nilai ini saat distribusi ke sekolah lain`,
     `SEKOLAH_NAMA="${form.nama_sekolah.trim() || sekolah.nama_sekolah}"`,
+    `SEKOLAH_ALAMAT="${form.alamat_sekolah.trim() || sekolah.alamat_sekolah || ''}"`,
     `SEKOLAH_JENJANG=${sekolah.jenjang}`,
     `TAHUN_AJARAN="${form.tahun_ajaran.trim() || sekolah.tahun_ajaran}"`,
     `NAMA_APLIKASI="${form.nama_aplikasi.trim() || sekolah.nama_aplikasi}"`,
-  ].join('\n'), [form, sekolah.nama_sekolah, sekolah.jenjang, sekolah.tahun_ajaran, sekolah.nama_aplikasi])
+  ].join('\n'), [form, sekolah.nama_sekolah, sekolah.alamat_sekolah, sekolah.jenjang, sekolah.tahun_ajaran, sekolah.nama_aplikasi])
 
   if (!admin) {
     return (
@@ -522,8 +572,44 @@ export default function Pengaturan() {
           <p className="mt-1 text-[0.78rem] leading-relaxed text-mute">Perubahan berlaku serta-merta untuk semua pengguna setelah disimpan.</p>
 
           <div className="mt-4 space-y-3.5">
+            <div>
+              <span className="label-field">Logo sekolah</span>
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line-soft bg-ink-950/40 p-3">
+                <span className="grid size-14 flex-none place-items-center overflow-hidden rounded-xl border border-line-soft bg-ink-900">
+                  {sekolah.logo_url
+                    ? <img src={sekolah.logo_url} alt="Logo sekolah" className="size-full object-contain" />
+                    : <Logo ukuran={40} />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[0.8rem] font-bold text-chalk">{sekolah.logo_url ? 'Logo sekolah terpasang' : 'Belum ada logo unggahan'}</p>
+                  <p className="mt-0.5 text-[0.72rem] leading-snug text-mute">
+                    Dipakai pada kartu ujian dan kop surat laporan cetak. Format PNG, JPG, atau WebP, maksimal 5 MB — sebaiknya latar transparan atau putih dengan rasio 1:1.
+                  </p>
+                </div>
+                <span className="flex flex-wrap gap-2">
+                  <input ref={logoRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={pilihLogo} aria-label="Pilih berkas logo sekolah" />
+                  <Tombol ukuran="sm" varian="kedua" ikon={ImagePlus} memuat={unggahLogo.isPending} onClick={() => logoRef.current?.click()}>
+                    {sekolah.logo_url ? 'Ganti logo' : 'Unggah logo'}
+                  </Tombol>
+                  {sekolah.logo_url && (
+                    <Tombol ukuran="sm" varian="halus" ikon={Trash2} memuat={hapusLogo.isPending} onClick={() => hapusLogo.mutate()}>Hapus</Tombol>
+                  )}
+                </span>
+              </div>
+            </div>
+
             <Field label="Nama sekolah" wajib pesan={galat.nama_sekolah} petunjuk="Tampil di bilah samping, halaman masuk, kop lembar jawaban, dan footer.">
               <input value={form.nama_sekolah} onChange={(e) => set('nama_sekolah', e.target.value)} className="kolom-field" maxLength={120} placeholder="Contoh: SMP Negeri 1 ShanaTech" />
+            </Field>
+            <Field label="Alamat sekolah" petunjuk="Tampil pada kop surat laporan hasil ujian yang dicetak. Kosongkan bila belum ingin ditampilkan.">
+              <textarea
+                value={form.alamat_sekolah}
+                onChange={(e) => set('alamat_sekolah', e.target.value)}
+                rows={2}
+                maxLength={300}
+                className="kolom-field resize-none"
+                placeholder="Contoh: Jl. Pendidikan No. 1, Kec. Sukamaju, Kota Bandung 40111"
+              />
             </Field>
             <Field label="Nama aplikasi" wajib pesan={galat.nama_aplikasi} petunjuk="Kata pertama menjadi nama utama, sisanya menjadi lencana (mis. “ShanaTech CBT”).">
               <input value={form.nama_aplikasi} onChange={(e) => set('nama_aplikasi', e.target.value)} className="kolom-field" maxLength={60} placeholder="Contoh: ShanaTech CBT" />
@@ -535,7 +621,7 @@ export default function Pengaturan() {
             <div className="flex flex-wrap items-center gap-2 border-t border-line-soft pt-4">
               <Tombol varian="utama" ikon={Save} disabled={!berubah} memuat={simpan.isPending} onClick={kirim}>Simpan identitas</Tombol>
               {berubah && (
-                <Tombol varian="halus" ikon={RotateCcw} onClick={() => { bunyi('klik'); setForm({ nama_sekolah: sekolah.nama_sekolah, nama_aplikasi: sekolah.nama_aplikasi, tahun_ajaran: sekolah.tahun_ajaran }); setGalat({}) }}>
+                <Tombol varian="halus" ikon={RotateCcw} onClick={() => { bunyi('klik'); setForm({ nama_sekolah: sekolah.nama_sekolah, alamat_sekolah: sekolah.alamat_sekolah || '', nama_aplikasi: sekolah.nama_aplikasi, tahun_ajaran: sekolah.tahun_ajaran }); setGalat({}) }}>
                   Batalkan
                 </Tombol>
               )}
@@ -546,6 +632,7 @@ export default function Pengaturan() {
 
         <Pratinjau
           namaSekolah={form.nama_sekolah}
+          alamat={form.alamat_sekolah}
           namaAplikasi={form.nama_aplikasi}
           tahun={form.tahun_ajaran}
           jenjang={jenjangPilih}

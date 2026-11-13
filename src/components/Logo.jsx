@@ -1,6 +1,21 @@
 import { useSekolah } from '../context/SekolahContext'
 
 export function Logo({ ukuran = 38 }) {
+  const { logo_url } = useSekolah()
+  // Logo sekolah hasil unggahan pada Pengaturan menggantikan tanda bawaan agar
+  // kop surat, kartu ujian, dan seluruh antarmuka memakai identitas yang sama.
+  if (logo_url) {
+    return (
+      <img
+        src={logo_url}
+        alt=""
+        width={ukuran}
+        height={ukuran}
+        className="flex-none rounded-lg bg-white/90 object-contain"
+        style={{ width: ukuran, height: ukuran }}
+      />
+    )
+  }
   return (
     <svg width={ukuran} height={ukuran} viewBox="0 0 64 64" aria-hidden className="flex-none">
       <defs>

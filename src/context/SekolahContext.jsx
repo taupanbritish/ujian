@@ -6,10 +6,12 @@ import { api } from '../lib/api'
 // selama /api/pengaturan dimuat agar antarmuka tidak pernah kosong.
 const BAWAAN = {
   nama_sekolah: 'SMP ShanaTech',
+  alamat_sekolah: '',
   jenjang: 'SMP',
   label_jenjang: 'Sekolah Menengah Pertama',
   tahun_ajaran: '2026/2027',
   nama_aplikasi: 'ShanaTech CBT',
+  logo_url: null,
   kelas: [],
 }
 

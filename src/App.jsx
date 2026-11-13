@@ -14,6 +14,9 @@ const UjianDetail = lazy(() => import('./pages/admin/UjianDetail'))
 const Monitoring = lazy(() => import('./pages/admin/Monitoring'))
 const Hasil = lazy(() => import('./pages/admin/Hasil'))
 const Laporan = lazy(() => import('./pages/admin/Laporan'))
+const LaporanCetak = lazy(() => import('./pages/admin/LaporanCetak'))
+const Kartu = lazy(() => import('./pages/admin/Kartu'))
+const KartuCetak = lazy(() => import('./pages/admin/KartuCetak'))
 const Mapel = lazy(() => import('./pages/admin/Mapel'))
 const Peserta = lazy(() => import('./pages/admin/Peserta'))
 const Pengaturan = lazy(() => import('./pages/admin/Pengaturan'))
@@ -106,6 +109,7 @@ export default function App() {
           <Route path="monitoring" element={<Monitoring />} />
           <Route path="hasil" element={<Hasil />} />
           <Route path="laporan" element={<Laporan />} />
+          <Route path="kartu" element={<HanyaAdmin><Kartu /></HanyaAdmin>} />
           <Route path="mapel" element={<HanyaAdmin><Mapel /></HanyaAdmin>} />
           <Route path="peserta" element={<HanyaAdmin><Peserta /></HanyaAdmin>} />
           <Route path="pengaturan" element={<HanyaAdmin><Pengaturan /></HanyaAdmin>} />
@@ -118,6 +122,10 @@ export default function App() {
           <Route path="hasil/:id" element={<HasilSiswa />} />
           <Route path="profil" element={<Profil />} />
         </Route>
+
+        {/* Dokumen cetak memakai tata letak kertas sendiri, di luar AppShell. */}
+        <Route path="/admin/kartu/cetak" element={<ButuhPeran peran="admin"><KartuCetak /></ButuhPeran>} />
+        <Route path="/admin/laporan/cetak" element={<ButuhPeran peran="staf"><LaporanCetak /></ButuhPeran>} />
 
         <Route path="/siswa/ujian/:id" element={<ButuhPeran peran="siswa"><RuangUjian /></ButuhPeran>} />
         <Route path="*" element={<TidakAda />} />

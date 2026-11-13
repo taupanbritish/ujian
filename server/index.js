@@ -13,6 +13,7 @@ import pengguna from './routes/pengguna.js'
 import monitoring from './routes/monitoring.js'
 import hasil from './routes/hasil.js'
 import laporan from './routes/laporan.js'
+import kartu from './routes/kartu.js'
 import ringkasan from './routes/ringkasan.js'
 import siswa from './routes/siswa.js'
 import pengaturan from './routes/pengaturan.js'
@@ -46,6 +47,7 @@ app.use('/api/pengguna', wajibMasuk, boleh('admin'), pengguna)
 app.use('/api/monitoring', wajibMasuk, staf, monitoring)
 app.use('/api/hasil', wajibMasuk, staf, hasil)
 app.use('/api/laporan', wajibMasuk, staf, laporan)
+app.use('/api/kartu', wajibMasuk, boleh('admin'), kartu)
 app.use('/api/mapel', mapel)
 // Unggah butuh sesi staf; penyajian berkas memakai URL bertanda tangan sehingga
 // tanpa header Authorization (tag <img>/<audio>/<video> tidak bisa mengirimnya).

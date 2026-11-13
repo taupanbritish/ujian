@@ -5,6 +5,7 @@ import { q, satu } from '../db/pool.js'
 import { bungkus, Galat, angka, bersih } from '../lib/http.js'
 import { hashSandi } from '../lib/sandi.js'
 import { catatAktivitas } from '../lib/ujian.js'
+import { urlMedia } from '../lib/media.js'
 
 const r = Router()
 
@@ -23,9 +24,15 @@ function sandiAcak(panjang = 10) {
 }
 
 const KOLOM = `p.id, p.nama, p.email, p.nis, p.peran, p.kelas, p.gender, p.aktif, p.terakhir_masuk, p.dibuat_pada,
+  CASE WHEN fm.id IS NULL THEN NULL ELSE p.foto_media_id END AS foto_media_id,
   (SELECT count(*)::int FROM percobaan pr WHERE pr.pengguna_id=p.id) AS jumlah_percobaan,
   (SELECT round(avg(pr.nilai)::numeric,1)::float FROM percobaan pr WHERE pr.pengguna_id=p.id AND pr.status='selesai') AS rata_nilai,
   (SELECT count(*)::int FROM percobaan pr WHERE pr.pengguna_id=p.id AND pr.status='berlangsung') AS sedang_mengerjakan`
+
+const hiasFoto = (rows) => rows.map((x) => ({
+  ...x,
+  foto_url: x.foto_media_id ? urlMedia(x.foto_media_id, 24 * 3600) : null,
+}))
 
 r.get('/', bungkus(async (req, res) => {
   const where = ['p.dihapus_pada IS NULL']
@@ -38,7 +45,9 @@ r.get('/', bungkus(async (req, res) => {
   if (req.query.kelas && req.query.kelas !== 'semua') tambah('p.kelas = ?', req.query.kelas)
   if (req.query.cari) tambah('(p.nama ILIKE ? OR p.email ILIKE ? OR p.nis ILIKE ?)', `%${bersih(req.query.cari)}%`)
   const urut = { nama: 'p.nama', kelas: 'p.kelas, p.nama', nilai: 'rata_nilai DESC NULLS LAST', baru: 'p.dibuat_pada DESC' }[req.query.urutan] || 'p.kelas, p.nama'
-  const rows = await q(`SELECT ${KOLOM} FROM pengguna p WHERE ${where.join(' AND ')} ORDER BY ${urut}`, params)
+  const rows = await q(`SELECT ${KOLOM} FROM pengguna p
+    LEFT JOIN media fm ON fm.id = p.foto_media_id AND fm.jenis='gambar'
+    WHERE ${where.join(' AND ')} ORDER BY ${urut}`, params)
   const ringkas = await satu(
     `SELECT count(*)::int AS total,
        count(*) FILTER (WHERE p.peran='siswa')::int AS siswa,
@@ -47,7 +56,7 @@ r.get('/', bungkus(async (req, res) => {
        count(*) FILTER (WHERE NOT p.aktif)::int AS nonaktif
      FROM pengguna p WHERE ${where.join(' AND ')}`, params,
   )
-  res.json({ data: rows.rows, ringkas })
+  res.json({ data: hiasFoto(rows.rows), ringkas })
 }))
 
 const skemaPengguna = z.object({
@@ -59,7 +68,15 @@ const skemaPengguna = z.object({
   gender: z.enum(['L', 'P']).nullable().optional(),
   aktif: z.boolean().default(true),
   kata_sandi: z.string().min(8, 'Kata sandi minimal 8 karakter.').optional(),
+  foto_media_id: z.union([z.null(), z.coerce.number().int().positive()]).optional(),
 })
+
+async function cekFoto(id) {
+  if (!id) return null
+  const media = await satu("SELECT id FROM media WHERE id=$1 AND jenis='gambar'", [id])
+  if (!media) throw new Galat(400, 'Foto peserta tidak ditemukan atau bukan gambar.')
+  return media.id
+}
 
 function batasi(req, peran) {
   if (req.pengguna.peran !== 'admin' && peran !== 'siswa') {
@@ -73,10 +90,11 @@ r.post('/', bungkus(async (req, res) => {
   if (!v.kata_sandi) throw new Galat(400, 'Kata sandi awal wajib diisi.')
   const kembar = await satu('SELECT id FROM pengguna WHERE lower(email)=lower($1) OR ($2::text IS NOT NULL AND lower(nis)=lower($2))', [bersih(v.email), v.nis || null])
   if (kembar) throw new Galat(409, 'Email atau NIS sudah terdaftar.')
+  const fotoId = v.peran === 'siswa' ? await cekFoto(v.foto_media_id) : null
   const baru = await satu(
-    `INSERT INTO pengguna (nama,email,nis,kata_sandi_hash,peran,kelas,gender,aktif) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+    `INSERT INTO pengguna (nama,email,nis,kata_sandi_hash,peran,kelas,gender,aktif,foto_media_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
     [bersih(v.nama), bersih(v.email).toLowerCase(), v.nis || null, await hashSandi(v.kata_sandi), v.peran,
-      v.peran === 'siswa' ? v.kelas || null : null, v.gender || null, v.aktif],
+      v.peran === 'siswa' ? v.kelas || null : null, v.gender || null, v.aktif, fotoId],
   )
   await catatAktivitas(req.pengguna.id, 'pengguna_baru', `${req.pengguna.nama} menambahkan ${v.peran} “${bersih(v.nama)}”`, '#38BDF8')
   res.status(201).json({ id: baru.id, pesan: 'Akun berhasil dibuat.' })
@@ -94,9 +112,10 @@ r.patch('/:id', bungkus(async (req, res) => {
   }
   const kembar = await satu('SELECT id FROM pengguna WHERE id<>$1 AND (lower(email)=lower($2) OR ($3::text IS NOT NULL AND lower(nis)=lower($3)))', [id, bersih(v.email), v.nis || null])
   if (kembar) throw new Galat(409, 'Email atau NIS sudah dipakai akun lain.')
+  const fotoId = v.peran === 'siswa' ? await cekFoto(v.foto_media_id) : null
   await q(
-    'UPDATE pengguna SET nama=$1,email=$2,nis=$3,peran=$4,kelas=$5,gender=$6,aktif=$7 WHERE id=$8',
-    [bersih(v.nama), bersih(v.email).toLowerCase(), v.nis || null, v.peran, v.peran === 'siswa' ? v.kelas || null : null, v.gender || null, v.aktif, id],
+    'UPDATE pengguna SET nama=$1,email=$2,nis=$3,peran=$4,kelas=$5,gender=$6,aktif=$7,foto_media_id=$8 WHERE id=$9',
+    [bersih(v.nama), bersih(v.email).toLowerCase(), v.nis || null, v.peran, v.peran === 'siswa' ? v.kelas || null : null, v.gender || null, v.aktif, fotoId, id],
   )
   if (v.kata_sandi) await q('UPDATE pengguna SET kata_sandi_hash=$1 WHERE id=$2', [await hashSandi(v.kata_sandi), id])
   res.json({ pesan: 'Data akun tersimpan.' })

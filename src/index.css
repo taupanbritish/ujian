@@ -350,3 +350,50 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Dokumen cetak (kartu ujian & laporan): tampil sebagai lembar putih di layar,
+   lalu menjadi kertas A4 tanpa elemen antarmuka saat dicetak. */
+.lembar-cetak {
+  color-scheme: light;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+@page {
+  size: A4;
+  margin: 10mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .tanpa-cetak {
+    display: none !important;
+  }
+  .pecah-hindari {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .lembar-cetak {
+    margin: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  .lembar-cetak thead {
+    display: table-header-group;
+  }
+  .lembar-cetak tr,
+  .lembar-cetak img {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .lembar-cetak a {
+    color: inherit;
+    text-decoration: none;
+  }
+}

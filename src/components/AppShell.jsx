@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, LibraryBig, FileStack, Radio, ChartNoAxesCombined, Users, Menu, X,
-  Volume2, VolumeX, LogOut, UserCircle, Search, ChevronRight, Database, GraduationCap, Bell, Settings2, BookOpen,
+  Volume2, VolumeX, LogOut, UserCircle, Search, ChevronRight, Database, GraduationCap, Bell, Settings2, BookOpen, IdCard,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
@@ -24,6 +24,7 @@ const MENU_GURU = [
 const MENU_ADMIN = [
   { ke: '/admin', label: 'Ringkasan', ikon: LayoutDashboard, akhir: true, warna: '#7C5CFF' },
   ...MENU_GURU,
+  { ke: '/admin/kartu', label: 'Kartu Ujian', ikon: IdCard, warna: '#FFB020' },
   { ke: '/admin/mapel', label: 'Mata Pelajaran', ikon: BookOpen, warna: '#34D399' },
   { ke: '/admin/peserta', label: 'Peserta & Akun', ikon: Users, warna: '#38BDF8' },
 ]
@@ -42,6 +43,8 @@ const JUDUL = [
   [/^\/admin\/ujian/, 'Daftar Ujian'],
   [/^\/admin\/monitoring/, 'Pengawasan Langsung'],
   [/^\/admin\/hasil/, 'Hasil & Penilaian'],
+  [/^\/admin\/laporan/, 'Laporan Hasil Ujian'],
+  [/^\/admin\/kartu/, 'Kartu Ujian'],
   [/^\/admin\/peserta/, 'Peserta & Akun'],
   [/^\/admin\/pengaturan/, 'Pengaturan Sekolah'],
   [/^\/admin\/profil/, 'Profil Akun'],

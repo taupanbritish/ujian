@@ -193,3 +193,7 @@ CREATE TABLE IF NOT EXISTS media (
   dibuat_pada  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_media_jenis ON media(jenis);
+
+-- Foto peserta untuk kartu ujian. Foto disimpan sebagai media biasa sehingga
+-- sajiannya tetap memakai URL bertanda tangan (bukan folder publik).
+ALTER TABLE pengguna ADD COLUMN IF NOT EXISTS foto_media_id INTEGER REFERENCES media(id) ON DELETE SET NULL;

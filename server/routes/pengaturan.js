@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import multer from 'multer'
 import { bungkus, Galat } from '../lib/http.js'
 import { wajibMasuk, boleh } from '../middleware/auth.js'
+import { satu } from '../db/pool.js'
 import {
   pengaturanPublik, setPengaturan, kelasManualUntuk, tambahRombel, hapusRombel,
 } from '../lib/pengaturan.js'
@@ -22,13 +23,20 @@ r.get('/', bungkus(async (_req, res) => {
 
 const skema = z.object({
   nama_sekolah: z.string().trim().min(3, 'Nama sekolah minimal 3 karakter.').max(120).optional(),
+  alamat_sekolah: z.string().trim().max(300, 'Alamat sekolah maksimal 300 karakter.').optional().nullable(),
   tahun_ajaran: z.string().trim().min(4, 'Tahun ajaran tidak valid.').max(20).optional(),
   nama_aplikasi: z.string().trim().min(3, 'Nama aplikasi minimal 3 karakter.').max(60).optional(),
   jenjang: z.enum(DAFTAR_JENJANG, { errorMap: () => ({ message: 'Jenjang tidak dikenal.' }) }).optional(),
+  // `null` menghapus logo dan mengembalikan tampilan ke logo bawaan aplikasi.
+  logo_media_id: z.union([z.null(), z.coerce.number().int().positive()]).optional(),
 })
 
 r.put('/', wajibMasuk, boleh('admin'), bungkus(async (req, res) => {
   const data = skema.parse(req.body)
+  if (data.logo_media_id) {
+    const media = await satu("SELECT id FROM media WHERE id=$1 AND jenis='gambar'", [data.logo_media_id])
+    if (!media) throw new Galat(400, 'Berkas logo tidak ditemukan atau bukan gambar.')
+  }
   await setPengaturan(data)
   await catatAktivitas(req.pengguna.id, 'pengaturan', `${req.pengguna.nama} memperbarui identitas sekolah`, '#FFB020')
   res.json(await pengaturanPublik())

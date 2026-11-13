@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Search, Users, GraduationCap, ShieldCheck, UserCog, Pencil, KeyRound, Archive,
   ArrowUpDown, Mail, CheckCircle2, XCircle, Activity, Sparkles, Eye, EyeOff, UserPlus, Lock,
-  FileSpreadsheet, Copy, Download,
+  FileSpreadsheet, Copy, Download, Camera, Trash2,
 } from 'lucide-react'
-import { api, pesanGalat } from '../../lib/api'
+import { api, apiUnggah, pesanGalat } from '../../lib/api'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { useSuara } from '../../context/SoundContext'
@@ -23,7 +23,10 @@ const PERAN = {
   siswa: { label: 'Peserta', warna: '#22D3EE', ikon: GraduationCap },
 }
 
-const KOSONG_FORM = { nama: '', email: '', nis: '', peran: 'siswa', kelas: '', gender: '', aktif: true, kata_sandi: '' }
+const KOSONG_FORM = {
+  nama: '', email: '', nis: '', peran: 'siswa', kelas: '', gender: '', aktif: true, kata_sandi: '',
+  foto_media_id: null, foto_url: '',
+}
 
 // Kolom yang dikenali saat impor Excel peserta/akun.
 const KOLOM_IMPOR_PESERTA = [
@@ -68,6 +71,7 @@ function FormAkun({ terbuka, onTutup, akun, kelas }) {
   const [form, setForm] = useState(KOSONG_FORM)
   const [galat, setGalat] = useState({})
   const [lihatSandi, setLihatSandi] = useState(false)
+  const fotoRef = useRef(null)
   const admin = pengguna.peran === 'admin'
   const edit = !!akun
 
@@ -78,6 +82,7 @@ function FormAkun({ terbuka, onTutup, akun, kelas }) {
     setForm(akun ? {
       nama: akun.nama, email: akun.email, nis: akun.nis || '', peran: akun.peran,
       kelas: akun.kelas || '', gender: akun.gender || '', aktif: akun.aktif, kata_sandi: '',
+      foto_media_id: akun.foto_media_id || null, foto_url: akun.foto_url || '',
     } : { ...KOSONG_FORM })
   }, [terbuka, akun])
 
@@ -91,12 +96,46 @@ function FormAkun({ terbuka, onTutup, akun, kelas }) {
 
   const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setGalat((g) => ({ ...g, [k]: undefined })) }
 
+  const unggahFoto = useMutation({
+    mutationFn: async (file) => {
+      const fd = new FormData()
+      fd.append('berkas', file)
+      const { media } = await apiUnggah('/media', fd)
+      return media
+    },
+    onSuccess: (media) => {
+      bunyi('simpan')
+      setForm((f) => ({ ...f, foto_media_id: media.id, foto_url: media.url }))
+      toast.sukses('Foto peserta diunggah', { pesan: 'Simpan akun untuk menerapkan foto pada kartu ujian.' })
+    },
+    onError: (e) => { bunyi('gagal'); toast.gagal('Foto belum diunggah', { pesan: pesanGalat(e) }) },
+  })
+
+  const pilihFoto = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      bunyi('gagal')
+      toast.gagal('Berkas bukan gambar', { pesan: 'Pilih foto berformat JPG, PNG, atau WebP.' })
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      bunyi('gagal')
+      toast.gagal('Foto terlalu besar', { pesan: 'Ukuran maksimal 5 MB.' })
+      return
+    }
+    bunyi('pilih')
+    unggahFoto.mutate(file)
+  }
+
   const simpan = useMutation({
     mutationFn: () => {
       const body = {
         nama: form.nama.trim(), email: form.email.trim(), nis: form.nis.trim() || null,
         peran: form.peran, kelas: form.peran === 'siswa' ? form.kelas.trim() || null : null,
         gender: form.gender || null, aktif: form.aktif,
+        foto_media_id: form.peran === 'siswa' ? form.foto_media_id || null : null,
       }
       if (form.kata_sandi) body.kata_sandi = form.kata_sandi
       return api(edit ? `/pengguna/${akun.id}` : '/pengguna', { method: edit ? 'PATCH' : 'POST', body })
@@ -209,6 +248,47 @@ function FormAkun({ terbuka, onTutup, akun, kelas }) {
                 <option value="P">Perempuan</option>
               </select>
             </Field>
+          </div>
+        )}
+
+        {form.peran === 'siswa' && (
+          <div>
+            <span className="label-field">Foto peserta</span>
+            <div className="flex flex-wrap items-start gap-3 rounded-xl border border-line-soft bg-ink-950/40 p-3">
+              <span className="grid h-[7.5rem] w-[5.6rem] flex-none place-items-center overflow-hidden rounded-lg border border-line-soft bg-ink-900">
+                {form.foto_url
+                  ? <img src={form.foto_url} alt={`Foto ${form.nama || 'peserta'}`} className="size-full object-cover" />
+                  : (
+                    <span className="flex flex-col items-center gap-1.5 text-mute">
+                      <Camera size={20} />
+                      <span className="px-2 text-center text-[0.62rem] leading-tight">Belum ada foto</span>
+                    </span>
+                  )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[0.8rem] font-bold text-chalk">Tampil pada kartu ujian peserta</p>
+                <p className="mt-0.5 text-[0.72rem] leading-relaxed text-mute">
+                  Gunakan pas foto rasio 3:4 dengan wajah terlihat jelas. Format JPG, PNG, atau WebP, maksimal 5 MB.
+                  Peserta tanpa foto tetap mendapat kartu dengan tempat foto kosong.
+                </p>
+                <span className="mt-2 flex flex-wrap gap-2">
+                  <input ref={fotoRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={pilihFoto} aria-label="Pilih berkas foto peserta" />
+                  <Tombol ukuran="sm" varian="kedua" ikon={Camera} memuat={unggahFoto.isPending} onClick={() => fotoRef.current?.click()}>
+                    {form.foto_url ? 'Ganti foto' : 'Unggah foto'}
+                  </Tombol>
+                  {form.foto_url && (
+                    <Tombol
+                      ukuran="sm"
+                      varian="halus"
+                      ikon={Trash2}
+                      onClick={() => setForm((f) => ({ ...f, foto_media_id: null, foto_url: '' }))}
+                    >
+                      Hapus foto
+                    </Tombol>
+                  )}
+                </span>
+              </div>
+            </div>
           </div>
         )}
 
@@ -423,7 +503,7 @@ export default function Peserta() {
                       <tr key={x.id} className="garis-tabel">
                         <td className="p-3">
                           <span className="flex items-center gap-2.5">
-                            <Avatar nama={x.nama} gender={x.gender} ukuran={36} />
+                            <Avatar nama={x.nama} gender={x.gender} ukuran={36} foto={x.foto_url} />
                             <span className="min-w-0">
                               <span className="flex items-center gap-1.5">
                                 <span className="truncate text-[0.85rem] font-semibold text-chalk">{x.nama}</span>

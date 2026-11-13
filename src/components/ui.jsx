@@ -78,7 +78,19 @@ export function TitikNyala({ warna = '#A3E635', label }) {
   )
 }
 
-export function Avatar({ nama, gender, ukuran = 38, warna }) {
+export function Avatar({ nama, gender, ukuran = 38, warna, foto }) {
+  // Foto peserta (bila ada) menggantikan inisial; ukuran tetap sama agar tata
+  // letak tabel dan kartu tidak bergeser ketika sebagian peserta belum berfoto.
+  if (foto) {
+    return (
+      <img
+        src={foto}
+        alt={nama || 'Foto peserta'}
+        className="flex-none rounded-xl border border-line-soft object-cover"
+        style={{ width: ukuran, height: ukuran }}
+      />
+    )
+  }
   const palet = ['#7C5CFF', '#22D3EE', '#A3E635', '#FFB020', '#FF4D6D', '#38BDF8', '#F472B6', '#34D399']
   const idx = (nama || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % palet.length
   const dasar = warna || palet[idx]
